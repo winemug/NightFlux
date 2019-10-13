@@ -1,0 +1,10 @@
+{
+  "nightscout": {
+    "mongo_url": "mongodb://username:password@url:port/nightscout?ssl=true",
+    "mongo_database_name": "nightscout"
+  },
+  "influxdb": {
+    "url": "http://influxdb:8086/",
+    "db":  "ns_import"
+  }
+}

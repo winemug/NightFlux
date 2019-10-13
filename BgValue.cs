@@ -4,7 +4,9 @@ using System.Text;
 
 namespace NightFlux
 {
-    class Importer
+    public struct BgValue
     {
+        public DateTimeOffset Time;
+        public decimal Value;
     }
 }
