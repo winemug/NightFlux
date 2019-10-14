@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace NightFlux
 {
-    public class NsImport : IDisposable
+    public class NsExport : IDisposable
     {
 
         private string MongoUrl;
@@ -17,7 +17,7 @@ namespace NightFlux
 
         private IConfigurationSection ConfigurationSection;
 
-        public NsImport(IConfigurationSection cs)
+        public NsExport(IConfigurationSection cs)
         {
             ConfigurationSection = cs;
             MongoUrl = cs["mongo_url"];

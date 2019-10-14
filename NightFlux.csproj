@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="InfluxDB.LineProtocol" Version="1.1.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.0.0" />
     <PackageReference Include="MongoDB.Driver" Version="2.9.2" />
   </ItemGroup>
