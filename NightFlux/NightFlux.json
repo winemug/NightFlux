@@ -5,6 +5,11 @@
   },
   "influxdb": {
     "url": "http://influxdb:8086/",
-    "db":  "ns_import"
+    "bucket": "ns_import"
+  },
+  "csv": {
+    "bg_path": "bg.csv",
+    "basal_path": "basal.csv",
+    "bolus_path": "bolus.csv"
   }
 }

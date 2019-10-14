@@ -13,7 +13,6 @@ namespace NightFlux
 
         private string MongoUrl;
         private string MongoDatabaseName;
-        private ulong LastBgTimestamp;
 
         private IConfigurationSection ConfigurationSection;
 
@@ -22,14 +21,13 @@ namespace NightFlux
             ConfigurationSection = cs;
             MongoUrl = cs["mongo_url"];
             MongoDatabaseName = cs["mongo_database_name"];
-            LastBgTimestamp = ulong.Parse(cs["last_bg_timestamp"] ?? "0" );
         }
 
         public void Dispose()
         {
         }
 
-        public async IAsyncEnumerable<BgValue> BgEntries()
+        public async IAsyncEnumerable<BgValue> BgEntries(long lastBgTimestamp)
         {
             var mc = new MongoClient(MongoUrl);
             var mdb = mc.GetDatabase(MongoDatabaseName);
@@ -37,7 +35,7 @@ namespace NightFlux
             var entries = mdb.GetCollection<BsonDocument>("entries");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
                 .And(
-                    new FilterDefinitionBuilder<BsonDocument>().Gt<ulong>("date", LastBgTimestamp),
+                    new FilterDefinitionBuilder<BsonDocument>().Gt<long>("date", lastBgTimestamp),
                     new FilterDefinitionBuilder<BsonDocument>().Eq<string>("type", "sgv")
                 );
 
@@ -69,8 +67,6 @@ namespace NightFlux
                     }
                 }
             }
-
-            ConfigurationSection["LastBgTimestamp"] = LastBgTimestamp.ToString();
         }
     }
 }
