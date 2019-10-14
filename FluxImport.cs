@@ -60,7 +60,7 @@ namespace NightFlux
                         break;
                 }
 
-                if (batchTotal >= UploadBatchSize)
+                if (batchTotal > 0)
                 {
                     var influxResult = await InfluxDbClient.WriteAsync(payload);
                     if (!influxResult.Success)
