@@ -20,19 +20,14 @@ namespace NightFlux
             var bolusPath = cs["bolus_path"];
             var basalPath = cs["basal_path"];
 
-            BgStream = new StreamWriter(bgPath);
-        }
-
-        public async Task<long> GetLastBgTimestamp()
-        {
-            return 0;
+            BgStream = new StreamWriter(bgPath, true);
         }
 
         public void Dispose()
         {
-            BgStream?.Close();
-            BolusStream?.Close();
-            BasalStream?.Close();
+            BgStream?.Dispose();
+            BolusStream?.Dispose();
+            BasalStream?.Dispose();
         }
 
         public async Task ImportBg(BgValue bgv)

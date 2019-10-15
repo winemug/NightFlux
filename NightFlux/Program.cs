@@ -15,11 +15,19 @@ namespace NightFlux
                 var configuration = GetConfiguration(args);
                 Console.WriteLine("Starting import from nightscout");
 
+                long bgTimestamp = 0;
+                using (var csvr = new CsvReader(configuration.GetSection("csv")))
+                {
+                    bgTimestamp = await csvr.GetLastBgTimestamp();
+                }
+
                 using var exporter = new NsExport(configuration.GetSection("nightscout"));
                 //using var importer = new FluxImport(configuration.GetSection("influxdb"));
                 using var importer = new CsvImport(configuration.GetSection("csv"));
+
+
                 await Task.WhenAll(
-                        ImportBgv(exporter, importer)
+                        ImportBgv(exporter, importer, bgTimestamp)
                     );
 
             }
@@ -47,11 +55,10 @@ namespace NightFlux
             }
         }
 
-        private static async Task ImportBgv(NsExport exporter, CsvImport importer)
+        private static async Task ImportBgv(NsExport exporter, CsvImport importer, long timestamp)
         {
             try
             {
-                var timestamp = await importer.GetLastBgTimestamp();
                 await foreach(var bgv in exporter.BgEntries(timestamp))
                 {
                     await importer.ImportBg(bgv);
