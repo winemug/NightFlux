@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -45,6 +47,34 @@ namespace NightFlux
             }
 
             return ts;
+        }
+
+        public async Task<Dictionary<DateTimeOffset, decimal>> GetBgValues(DateTimeOffset? startIncluding = null, DateTimeOffset? endExcluding = null)
+        {
+            var dict = new Dictionary<DateTimeOffset, decimal>();
+            if (BgStream != null)
+            {
+                while (!BgStream.EndOfStream)
+                {
+                    var line = await BgStream.ReadLineAsync();
+                    if (line.Length > 0)
+                    {
+                        var cols = line.Split(',');
+                        long timestamp = long.Parse(cols[0], CultureInfo.InvariantCulture);
+                        decimal bgv = decimal.Parse(cols[1], CultureInfo.InvariantCulture);
+                        var dt = DateTimeOffset.FromUnixTimeMilliseconds(timestamp);
+
+                        if (startIncluding.HasValue && dt < startIncluding)
+                            continue;
+
+                        if (endExcluding.HasValue && dt >= endExcluding)
+                            continue;
+
+                        dict[dt] = bgv;
+                    }
+                }
+            }
+            return dict;
         }
 
         public void Dispose()

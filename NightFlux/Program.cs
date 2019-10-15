@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
+using NightLight;
 
 namespace NightFlux
 {
@@ -23,12 +24,18 @@ namespace NightFlux
 
                 using var exporter = new NsExport(configuration.GetSection("nightscout"));
                 //using var importer = new FluxImport(configuration.GetSection("influxdb"));
-                using var importer = new CsvImport(configuration.GetSection("csv"));
+                using(var importer = new CsvImport(configuration.GetSection("csv")))
+                {
+                    await Task.WhenAll(
+                            ImportBgv(exporter, importer, bgTimestamp)
+                        );
+                }
 
 
-                await Task.WhenAll(
-                        ImportBgv(exporter, importer, bgTimestamp)
-                    );
+                using (var csvr = new CsvReader(configuration.GetSection("csv")))
+                {
+                    await AnalyticsTest(csvr);
+                }
 
             }
             catch(Exception e)
@@ -69,6 +76,13 @@ namespace NightFlux
                 Console.WriteLine($"Error importing bg values:\n{e}");
                 throw;
             }
+        }
+
+        private static async Task AnalyticsTest(CsvReader reader)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var allBgs = await reader.GetBgValues(now.AddDays(-3));
+            Transforms.Compose(allBgs);
         }
     }
 }

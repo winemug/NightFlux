@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\NightLight\NightLight.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="NightFlux.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
