@@ -340,3 +340,4 @@ ASALocalRun/
 healthchecksdb
 **/Secret.json
 /Properties/launchSettings.json
+/NightFlux/Properties/launchSettings.json
