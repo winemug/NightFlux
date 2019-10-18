@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -27,7 +28,7 @@ namespace NightFlux
                 {
                     await Task.WhenAll(
                             ImportBgv(exporter, importer, bgTimestamp),
-                            ImportProfiles(exporter, importer)
+                            ImportProfilesAndBasals(exporter, importer)
                         );
                 }
 
@@ -79,14 +80,22 @@ namespace NightFlux
             }
         }
 
-        private static async Task ImportProfiles(NsExport exporter, CsvImport importer)
+        private static async Task ImportProfilesAndBasals(NsExport exporter, CsvImport importer)
         {
             try
             {
+                var basalProfiles = new List<BasalProfile>();
                 await foreach(var profile in exporter.ProfileEntries())
                 {
                     await importer.ImportProfile(profile);
+                    basalProfiles.Add(profile);
                 }
+
+                await foreach(var basalRate in exporter.BasalRates(basalProfiles))
+                {
+                    await importer.ImportBasalRate(basalRate);
+                }
+
             }
             catch(Exception e)
             {

@@ -98,10 +98,10 @@ namespace NightFlux
                 {
                     double? ts_val = null;
                     BsonValue bsonVal = null;
-                    if (document.TryGetValue("timestamp", out bsonVal) && bsonVal.AsNullableDouble.HasValue)
+                    if (document.TryGetValue("timestamp", out bsonVal) && !bsonVal.IsBsonNull)
                         ts_val = bsonVal.AsNullableDouble;
 
-                    if (document.TryGetValue("NSCLIENT_ID", out bsonVal) && bsonVal.AsNullableDouble.HasValue)
+                    if (document.TryGetValue("NSCLIENT_ID", out bsonVal) && !bsonVal.IsBsonNull)
                         ts_val = bsonVal.AsNullableDouble;
 
                     if (!ts_val.HasValue)
@@ -113,13 +113,13 @@ namespace NightFlux
                     int timeShift = 0;
                     int duration = 0;
 
-                    if (document.TryGetValue("percentage", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                    if (document.TryGetValue("percentage", out bsonVal) && !bsonVal.IsBsonNull)
                         percentage = bsonVal.AsInt32;
 
-                    if (document.TryGetValue("timeshift", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                    if (document.TryGetValue("timeshift", out bsonVal) && !bsonVal.IsBsonNull)
                         timeShift = bsonVal.AsInt32;
 
-                    if (document.TryGetValue("duration", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                    if (document.TryGetValue("duration", out bsonVal) && !bsonVal.IsBsonNull)
                         duration = bsonVal.AsInt32;
 
                     var jsonProfile = JObject.Parse(document["profileJson"].AsString);
@@ -132,7 +132,7 @@ namespace NightFlux
                         // there has to be an explicit profile switch entry for each change in local time
                         utcOffset = (int) tzi.GetUtcOffset(profileSwitchTime).TotalMinutes;
                     }
-                    else if (document.TryGetValue("utcOffset", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                    else if (document.TryGetValue("utcOffset", out bsonVal) && !bsonVal.IsBsonNull)
                         utcOffset = bsonVal.AsInt32;
 
                     var nsBasalRates = new decimal?[48];
@@ -264,6 +264,61 @@ namespace NightFlux
                 };
             }
         }
+
+        public async IAsyncEnumerable<BasalRate> BasalRates(List<BasalProfile> basalProfiles)
+        {
+            var mc = new MongoClient(MongoUrl);
+            var mdb = mc.GetDatabase(MongoDatabaseName);
+
+            var entries = mdb.GetCollection<BsonDocument>("treatments");
+            var filter = new BsonDocument();
+            filter.Add("eventType", "Temp Basal");
+
+
+            var tempBasals = new List<NsTempBasal>();
+            using var cursor = await entries.Find(filter).ToCursorAsync();
+            while (await cursor.MoveNextAsync())
+            {
+                foreach (BsonDocument document in cursor.Current)
+                {
+                    double? ts_val = null;
+                    BsonValue bsonVal = null;
+
+                    if (document.TryGetValue("NSCLIENT_ID", out bsonVal) && !bsonVal.IsBsonNull)
+                        ts_val = bsonVal.AsNullableDouble;
+
+                    if (!ts_val.HasValue)
+                        continue;
+
+                    var tempBasalTime = DateTimeOffset.FromUnixTimeMilliseconds((long)ts_val).UtcDateTime;
+
+                    int? duration = null;
+                    decimal? absoluteRate = null;
+                    int? percentRate = null;
+                    //if (document.TryGetValue("duration", out bsonVal) && !bsonVal.IsBsonNull)
+                    //    duration = bsonVal.AsInt32;
+                    //if (document.TryGetValue("absolute", out bsonVal) && !bsonVal.IsBsonNull)
+                    //    absoluteRate = bsonVal.AsDouble.ToPreciseDecimal(0.05m);
+                    //if (document.TryGetValue("rate", out bsonVal) && !bsonVal.IsBsonNull)
+                    //    percentRate = bsonVal.AsInt32;
+                    tempBasals.Add(new NsTempBasal
+                    {
+                        Time = tempBasalTime,
+                        Duration = duration,
+                        AbsoluteRate = absoluteRate,
+                        PercentRate = percentRate
+                    });
+                }
+            }
+
+            yield return new BasalRate
+            {
+                Time = DateTimeOffset.UtcNow,
+                Rate = 0
+            };
+
+        }
+
     }
 
     struct NsProfileSwitch
@@ -272,5 +327,13 @@ namespace NightFlux
         public int ProfileOffset;
         public int? Duration;
         public decimal[] Rates;
+    }
+
+    struct NsTempBasal
+    {
+        public DateTimeOffset Time;
+        public int? Duration;
+        public decimal? AbsoluteRate;
+        public int? PercentRate;
     }
 }
