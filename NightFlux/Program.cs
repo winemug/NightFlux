@@ -14,7 +14,6 @@ namespace NightFlux
             try
             {
                 var configuration = GetConfiguration(args);
-                Console.WriteLine("Starting import from nightscout");
 
                 long bgTimestamp = 0;
                 using (var csvr = new CsvReader(configuration.GetSection("csv")))
@@ -27,7 +26,8 @@ namespace NightFlux
                 using(var importer = new CsvImport(configuration.GetSection("csv")))
                 {
                     await Task.WhenAll(
-                            ImportBgv(exporter, importer, bgTimestamp)
+                            ImportBgv(exporter, importer, bgTimestamp),
+                            ImportProfiles(exporter, importer)
                         );
                 }
 
@@ -42,6 +42,7 @@ namespace NightFlux
             {
                 Console.WriteLine($"Exiting due to error:\n{e}");
             }
+            Console.WriteLine($"Finished");
         }
 
         private static IConfiguration GetConfiguration(string[] args)
@@ -74,6 +75,22 @@ namespace NightFlux
             catch(Exception e)
             {
                 Console.WriteLine($"Error importing bg values:\n{e}");
+                throw;
+            }
+        }
+
+        private static async Task ImportProfiles(NsExport exporter, CsvImport importer)
+        {
+            try
+            {
+                await foreach(var profile in exporter.ProfileEntries())
+                {
+                    await importer.ImportProfile(profile);
+                }
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine($"Error importing basal profiles:\n{e}");
                 throw;
             }
         }

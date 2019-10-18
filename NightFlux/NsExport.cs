@@ -1,10 +1,14 @@
 ﻿using Microsoft.Extensions.Configuration;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TimeZoneConverter;
 
 namespace NightFlux
 {
@@ -49,7 +53,7 @@ namespace NightFlux
                     try
                     {
                         dt = DateTimeOffset.FromUnixTimeMilliseconds(document["date"].ToInt64()).UtcDateTime;
-                        gv = document["sgv"].ToDecimal();
+                        gv = document["sgv"].ToDouble().ToPreciseDecimal(1);
                     }
                     catch
                     {
@@ -68,5 +72,205 @@ namespace NightFlux
                 }
             }
         }
+
+        public async IAsyncEnumerable<BasalProfile> ProfileEntries()
+        {
+            var mc = new MongoClient(MongoUrl);
+            var mdb = mc.GetDatabase(MongoDatabaseName);
+
+            var entries = mdb.GetCollection<BsonDocument>("treatments");
+
+            var filter = new BsonDocument();
+            filter.Add("eventType", "Profile Switch");
+            filter.Add("$and", new BsonArray()
+                    .Add(new BsonDocument()
+                            .Add("profileJson", new BsonDocument()
+                                    .Add("$exists", new BsonBoolean(true))
+                            )
+                    )
+            );
+
+            var profileSwitches = new List<NsProfileSwitch>();
+            using var cursor = await entries.Find(filter).ToCursorAsync();
+            while (await cursor.MoveNextAsync())
+            {
+                foreach (BsonDocument document in cursor.Current)
+                {
+                    double? ts_val = null;
+                    BsonValue bsonVal = null;
+                    if (document.TryGetValue("timestamp", out bsonVal) && bsonVal.AsNullableDouble.HasValue)
+                        ts_val = bsonVal.AsNullableDouble;
+
+                    if (document.TryGetValue("NSCLIENT_ID", out bsonVal) && bsonVal.AsNullableDouble.HasValue)
+                        ts_val = bsonVal.AsNullableDouble;
+
+                    if (!ts_val.HasValue)
+                        continue;
+
+                    var profileSwitchTime = DateTimeOffset.FromUnixTimeMilliseconds((long)ts_val).UtcDateTime;
+                    int percentage = 100;
+                    int utcOffset = 0;
+                    int timeShift = 0;
+                    int duration = 0;
+
+                    if (document.TryGetValue("percentage", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                        percentage = bsonVal.AsInt32;
+
+                    if (document.TryGetValue("timeshift", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                        timeShift = bsonVal.AsInt32;
+
+                    if (document.TryGetValue("duration", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                        duration = bsonVal.AsInt32;
+
+                    var jsonProfile = JObject.Parse(document["profileJson"].AsString);
+                    if (jsonProfile.ContainsKey("timezone"))
+                    {
+                        var tzString = jsonProfile["timezone"].ToString();
+                        var tzi = TZConvert.GetTimeZoneInfo(tzString);
+                        // including dst at the time of profile switch
+                        // as the pod does not switch timezones or dst,
+                        // there has to be an explicit profile switch entry for each change in local time
+                        utcOffset = (int) tzi.GetUtcOffset(profileSwitchTime).TotalMinutes;
+                    }
+                    else if (document.TryGetValue("utcOffset", out bsonVal) && bsonVal.AsNullableInt32.HasValue)
+                        utcOffset = bsonVal.AsInt32;
+
+                    var nsBasalRates = new decimal?[48];
+
+                    if (jsonProfile.ContainsKey("basal"))
+                    {
+                        foreach(JObject nsRate in jsonProfile["basal"])
+                        {
+                            int? basalIndex = null;
+                            decimal? rate = null;
+
+                            double ns_rate;
+                            if (nsRate.ContainsKey("value")
+                                && double.TryParse(nsRate["value"].ToString(), out ns_rate))
+                            {
+                                rate = (ns_rate * percentage / 100).ToPreciseDecimal(0.05m);
+                            }
+
+                            long ns_tas = 0;
+                            if (nsRate.ContainsKey("timeAsSeconds") &&
+                                long.TryParse(nsRate["timeAsSeconds"].ToString(), out ns_tas))
+                            {
+                                basalIndex = (int) ns_tas / 1800;
+                            }
+
+                            if (nsRate.ContainsKey("time"))
+                            {
+                                var nsTimeString = nsRate["time"].ToString();
+                                if (!string.IsNullOrEmpty(nsTimeString))
+                                {
+                                    var nsTimeComponents = nsTimeString.Split(':');
+                                    if (nsTimeComponents.Length == 2)
+                                    {
+                                        int nsHour;
+                                        int nsMinute;
+                                        if (int.TryParse(nsTimeComponents[0], out nsHour)
+                                            && int.TryParse(nsTimeComponents[1], out nsMinute))
+                                        {
+                                            int index_candidate = nsHour * 2;
+                                            if (nsMinute == 0)
+                                                basalIndex = index_candidate;
+                                            else if (nsMinute == 30)
+                                                basalIndex = index_candidate + 1;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (basalIndex.HasValue && rate.HasValue
+                                && basalIndex >= 0 && basalIndex < 48
+                                && rate > 0 && rate < 30m)
+                            {
+                                nsBasalRates[basalIndex.Value] = rate;
+                            }
+                        }
+
+                        if (!nsBasalRates[0].HasValue)
+                            break;
+
+                        var lastRate = 0m;
+                        var rates = new decimal[48];
+                        for(int i=0; i<48; i++)
+                        {
+                            if (nsBasalRates[i].HasValue)
+                            {
+                                lastRate = nsBasalRates[i].Value;
+                            }
+                            rates[i] = lastRate;
+                        }
+
+                        profileSwitches.Add(new NsProfileSwitch
+                        {
+                            Time = profileSwitchTime,
+                            ProfileOffset = utcOffset + timeShift,
+                            Duration = duration == 0 ? null : (int?)duration,
+                            Rates = rates
+                        });
+                    }
+                }
+            }
+
+            var basalProfiles = new List<BasalProfile>();
+
+            NsProfileSwitch? lastProfileSwitch = null;
+            DateTimeOffset? tempSwitchEndTime = null;
+
+            foreach(var profileSwitch in profileSwitches.OrderBy(ps => ps.Time))
+            {
+                if (lastProfileSwitch.HasValue && tempSwitchEndTime.HasValue
+                    && tempSwitchEndTime < profileSwitch.Time)
+                {
+                    yield return new BasalProfile
+                    {
+                        Time = tempSwitchEndTime.Value,
+                        UtcOffsetInMinutes = lastProfileSwitch.Value.ProfileOffset,
+                        BasalRates = lastProfileSwitch.Value.Rates
+                    };
+                }
+
+                if (!profileSwitch.Duration.HasValue)
+                {
+                    lastProfileSwitch = profileSwitch;
+                    tempSwitchEndTime = null;
+                }
+                else if (lastProfileSwitch.HasValue)
+                {
+                    tempSwitchEndTime = profileSwitch.Time.AddMinutes(profileSwitch.Duration.Value);
+                }
+                else
+                {
+                    continue;
+                }
+
+                yield return new BasalProfile
+                {
+                    Time = profileSwitch.Time,
+                    UtcOffsetInMinutes = profileSwitch.ProfileOffset,
+                    BasalRates = profileSwitch.Rates
+                };
+            }
+
+            if (lastProfileSwitch.HasValue && tempSwitchEndTime.HasValue)
+            {
+                yield return new BasalProfile
+                {
+                    Time = tempSwitchEndTime.Value,
+                    UtcOffsetInMinutes = lastProfileSwitch.Value.ProfileOffset,
+                    BasalRates = lastProfileSwitch.Value.Rates
+                };
+            }
+        }
+    }
+
+    struct NsProfileSwitch
+    {
+        public DateTimeOffset Time;
+        public int ProfileOffset;
+        public int? Duration;
+        public decimal[] Rates;
     }
 }
