@@ -29,6 +29,7 @@ namespace NightFlux
         public void Dispose()
         {
             BgStream?.Dispose();
+            BpStream?.Dispose();
             BolusStream?.Dispose();
             BasalStream?.Dispose();
         }
