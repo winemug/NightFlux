@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace NightFlux
@@ -14,8 +15,9 @@ namespace NightFlux
             if (remainder < midpoint)
                 result -= remainder;
             else
-                result += remainder;
+                result += precision - remainder;
 
+            Debug.WriteLine($"{val} {precision} {result}");
             return result;
         }
     }
