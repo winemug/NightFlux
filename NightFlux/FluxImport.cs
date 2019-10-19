@@ -1,7 +1,6 @@
 ﻿using InfluxData.Net.Common.Enums;
 using InfluxData.Net.InfluxDb;
 using InfluxData.Net.InfluxDb.Models;
-using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -20,13 +19,13 @@ namespace NightFlux
         private TaskCompletionSource<bool> FinalizeImport;
         private const int UploadBatchSize = 256;
 
-        public FluxImport(IConfigurationSection cs)
+        public FluxImport(Configuration configuration)
         {
-            Client = new InfluxDbClient(cs["url"], "", "", InfluxDbVersion.v_1_3);
-            BucketName = cs["bucket"];
-            FinalizeImport = new TaskCompletionSource<bool>();
-            Points = new ConcurrentQueue<Point>();
-            Uploader = Task.Run(async () => await BatchUpload());
+            //Client = new InfluxDbClient(cs["url"], "", "", InfluxDbVersion.v_1_3);
+            //BucketName = cs["bucket"];
+            //FinalizeImport = new TaskCompletionSource<bool>();
+            //Points = new ConcurrentQueue<Point>();
+            //Uploader = Task.Run(async () => await BatchUpload());
         }
 
         public void Dispose()

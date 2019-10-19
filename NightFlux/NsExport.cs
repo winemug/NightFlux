@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using MongoDB.Bson;
+﻿using MongoDB.Bson;
 using MongoDB.Driver;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -14,17 +13,11 @@ namespace NightFlux
 {
     public class NsExport : IDisposable
     {
+        private Configuration Configuration;
 
-        private string MongoUrl;
-        private string MongoDatabaseName;
-
-        private IConfigurationSection ConfigurationSection;
-
-        public NsExport(IConfigurationSection cs)
+        public NsExport(Configuration configuration)
         {
-            ConfigurationSection = cs;
-            MongoUrl = cs["mongo_url"];
-            MongoDatabaseName = cs["mongo_database_name"];
+            Configuration = configuration;
         }
 
         public void Dispose()
@@ -33,8 +26,8 @@ namespace NightFlux
 
         public async IAsyncEnumerable<BgValue> BgEntries(long lastBgTimestamp)
         {
-            var mc = new MongoClient(MongoUrl);
-            var mdb = mc.GetDatabase(MongoDatabaseName);
+            var mc = new MongoClient(Configuration.NsMongoDbUrl);
+            var mdb = mc.GetDatabase(Configuration.NsDbName);
 
             var entries = mdb.GetCollection<BsonDocument>("entries");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
@@ -75,8 +68,8 @@ namespace NightFlux
 
         public async IAsyncEnumerable<BasalProfile> ProfileEntries()
         {
-            var mc = new MongoClient(MongoUrl);
-            var mdb = mc.GetDatabase(MongoDatabaseName);
+            var mc = new MongoClient(Configuration.NsMongoDbUrl);
+            var mdb = mc.GetDatabase(Configuration.NsDbName);
 
             var entries = mdb.GetCollection<BsonDocument>("treatments");
 
@@ -267,8 +260,9 @@ namespace NightFlux
 
         public async IAsyncEnumerable<BasalRate> BasalRates(List<BasalProfile> basalProfiles)
         {
-            var mc = new MongoClient(MongoUrl);
-            var mdb = mc.GetDatabase(MongoDatabaseName);
+            var mc = new MongoClient(Configuration.NsMongoDbUrl);
+            var mdb = mc.GetDatabase(Configuration.NsDbName);
+
 
             var entries = mdb.GetCollection<BsonDocument>("treatments");
             var filter = new BsonDocument();
