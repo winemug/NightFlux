@@ -16,8 +16,6 @@ namespace NightFlux
                 result -= remainder;
             else
                 result += precision - remainder;
-
-            Debug.WriteLine($"{val} {precision} {result}");
             return result;
         }
     }

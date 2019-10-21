@@ -18,11 +18,12 @@ namespace NightFlux
                 {
                     await Task.WhenAll(
                             sync.ImportBg(),
-                            sync.ImportBasals(),
+                            sync.ImportBasalProfiles(),
                             sync.ImportBoluses(),
                             sync.ImportCarbs()
                         );
                 }
+                configuration.Save();
             }
             catch(Exception e)
             {

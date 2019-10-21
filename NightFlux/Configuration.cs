@@ -11,7 +11,8 @@ namespace NightFlux
         public string SqlitePath {get; set;}
         public string NsMongoDbUrl {get; set;}
         public string NsDbName {get; set;}
-        public int NsImportLastBgTimestamp {get; set;}
+        public long NsImportLastBgTimestamp {get; set;}
+        public long NsImportLastBasalProfileTimestamp {get;set;}
         private string ConfigurationPath { get; set;}
 
         public static Configuration Load(string path = "./NightFlux.json")
@@ -26,6 +27,7 @@ namespace NightFlux
             {
                 result = new Configuration()
                 {
+                    NsMongoDbUrl = "mongodb://nsclient:nsnotsafe@balya.net:17022/nightscout?ssl=false",
                     SqlitePath = "nightflux.sqlite",
                     NsDbName = "nightscout"
                 };
