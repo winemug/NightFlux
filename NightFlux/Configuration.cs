@@ -11,8 +11,6 @@ namespace NightFlux
         public string SqlitePath {get; set;}
         public string NsMongoDbUrl {get; set;}
         public string NsDbName {get; set;}
-        public long NsImportLastBgTimestamp {get; set;}
-        public long NsImportLastBasalProfileTimestamp {get;set;}
         private string ConfigurationPath { get; set;}
 
         public static Configuration Load(string path = "./NightFlux.json")

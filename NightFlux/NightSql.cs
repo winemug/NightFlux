@@ -79,6 +79,15 @@ namespace NightFlux
             await tran.CommitAsync();
         }
 
+        public async Task<long> GetLastBgDate()
+        {
+            await foreach (var dr in ExecuteQuery("SELECT time FROM bg ORDER BY time DESC LIMIT 1"))
+            {
+                return dr.GetInt64(0);
+            }
+            return 0;
+        }
+
         private async Task Initialize()
         {
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bg" +
@@ -95,7 +104,7 @@ namespace NightFlux
             return conn;
         }
 
-        private async IAsyncEnumerable<NameValueCollection> ExecuteQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
+        private async IAsyncEnumerable<SQLiteDataReader> ExecuteQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
         {
             bool closeConnection = false;
             try
@@ -117,7 +126,7 @@ namespace NightFlux
                 var dataReader = cmd.ExecuteReader();
                 while(await dataReader.ReadAsync())
                 {
-                    yield return dataReader.GetValues();
+                    yield return dataReader;
                 }
                 await dataReader.DisposeAsync();
             }

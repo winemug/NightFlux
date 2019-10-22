@@ -30,11 +30,11 @@ namespace NightFlux
         public async Task ImportBg()
         {
             var nsql = await NightSql.GetInstance(Configuration);
+            var lastTimestamp = await nsql.GetLastBgDate();
             var entries = MongoDatabase.GetCollection<BsonDocument>("entries");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
                 .And(
-                    new FilterDefinitionBuilder<BsonDocument>().Gt<long>("date", 
-                        Configuration.NsImportLastBgTimestamp),
+                    new FilterDefinitionBuilder<BsonDocument>().Gt<long>("date", lastTimestamp),
                     new FilterDefinitionBuilder<BsonDocument>().Eq<string>("type", "sgv")
                 );
 
@@ -59,8 +59,6 @@ namespace NightFlux
 
                     if (dt.HasValue && gv.HasValue)
                     {
-                        Configuration.NsImportLastBgTimestamp = document["date"].ToInt64();
-
                         await nsql.ImportBg(new BgValue
                         {
                             Value = gv.Value,
