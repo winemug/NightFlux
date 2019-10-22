@@ -83,6 +83,9 @@ namespace NightFlux
         {
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bg" +
                 "(time INTEGER, value REAL);");
+
+            await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS basal" +
+                "(time INTEGER, value REAL);");
         }
 
         private async Task<SQLiteConnection> GetConnection()
