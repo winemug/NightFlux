@@ -4,7 +4,7 @@ using System.Text;
 
 namespace NightFlux.View
 {
-    public struct GlucoseValue
+    public struct TimeValue
     {
         public DateTimeOffset Time;
         public decimal? Value;
