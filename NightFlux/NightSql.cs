@@ -72,6 +72,30 @@ namespace NightFlux
             await Task.WhenAll(BatchTasks.ToArray());
         }
 
+        public async Task RemoveDuplicateCarbs()
+        {
+            using var conn = await GetConnection();
+            var duplicateIds = new List<long>();
+            await foreach (var dr in ExecuteQuery("SELECT import_id, COUNT(*) FROM carb GROUP BY import_id HAVING COUNT(*) > 1", null, conn))
+            {
+                var importId = dr.GetString(0);
+                var duplicateCount = dr.GetInt64(1) - 1;
+                await foreach (var rowInfo in ExecuteQuery("SELECT rowid FROM carb WHERE import_id = @i ORDER BY time DESC LIMIT @k",
+                    new [] { GetParameter("i", importId), GetParameter("k", duplicateCount) }, conn))
+                {
+                    duplicateIds.Add(rowInfo.GetInt64(0));
+                }
+            }
+
+            using var tran = await conn.BeginTransactionAsync();
+            foreach(var duplicateId in duplicateIds)
+            {
+                await ExecuteNonQuery("DELETE FROM carb WHERE rowid = @d",
+                    new [] { GetParameter("d", duplicateId) }, conn);
+            }
+            await tran.CommitAsync();
+        }
+
         private async Task InsertBatchEntities(List<IEntity> entities)
         {
             using var conn = await GetConnection();
@@ -168,23 +192,13 @@ namespace NightFlux
 
         private async Task ImportCarb(Carb carb, SQLiteConnection conn)
         {
-            try
-            {
-                await ExecuteNonQuery("INSERT INTO carb(time,amount,import_id) VALUES(@t, @a, @i)",
-                    new []
-                    {
-                        GetParameter("t", carb.Time),
-                        GetParameter("a", carb.Amount),
-                        GetParameter("i", carb.ImportId),
-                    }, conn);
-            }
-            catch(SQLiteException se)
-            {
-                // carbs are <sometimes> duplicated in NS model (because wtf)
-                // so filter them out via ignoring error on unique index constraint
-                if (se.ErrorCode != 19)
-                    throw;
-            }
+            await ExecuteNonQuery("INSERT INTO carb(time,amount,import_id) VALUES(@t, @a, @i)",
+                new []
+                {
+                    GetParameter("t", carb.Time),
+                    GetParameter("a", carb.Amount),
+                    GetParameter("i", carb.ImportId),
+                }, conn);
         }
 
         public async Task<long> GetLastBgDate()
@@ -260,8 +274,6 @@ namespace NightFlux
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS carb" +
                 "(time INTEGER, amount REAL, import_id TEXT);");
-
-            await ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_carb_import ON carb(import_id)");
         }
 
         private async Task<SQLiteConnection> GetConnection()

@@ -170,7 +170,7 @@ namespace NightFlux
         {
             var nsql = await NightSql.GetInstance(Configuration);
             var lastTimestamp = await nsql.GetLastCarbDate();
-
+            await nsql.StartBatchImport();
             var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
                     .And(
@@ -196,6 +196,8 @@ namespace NightFlux
                         await nsql.Import(carb.Value);
                 }
             }
+            await nsql.FinalizeBatchImport();
+            await nsql.RemoveDuplicateCarbs();
         }
 
         public async Task ImportExtendedBoluses()
