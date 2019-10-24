@@ -276,14 +276,14 @@ namespace NightFlux
                 "(time INTEGER, amount REAL, import_id TEXT);");
         }
 
-        private async Task<SQLiteConnection> GetConnection()
+        public async Task<SQLiteConnection> GetConnection()
         {
             var conn = new SQLiteConnection(SqliteConnectionString);
             await conn.OpenAsync();
             return conn;
         }
 
-        private async IAsyncEnumerable<SQLiteDataReader> ExecuteQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
+        public async IAsyncEnumerable<SQLiteDataReader> ExecuteQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
         {
             bool closeConnection = false;
             try
@@ -316,7 +316,7 @@ namespace NightFlux
             }
         }
 
-        private async Task<int> ExecuteNonQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
+        public async Task<int> ExecuteNonQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
         {
             bool closeConnection = false;
             try
@@ -347,7 +347,7 @@ namespace NightFlux
             }
         }
 
-        private async Task<object> ExecuteScalar(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
+        public async Task<object> ExecuteScalar(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
         {
             bool closeConnection = false;
             try
@@ -375,56 +375,56 @@ namespace NightFlux
             }
         }
 
-        private SQLiteParameter GetParameter(string name, long value)
+        public SQLiteParameter GetParameter(string name, long value)
         {
             var p = new SQLiteParameter(name, DbType.Int64);
             p.Value = value;
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, int value)
+        public SQLiteParameter GetParameter(string name, int value)
         {
             var p = new SQLiteParameter(name, DbType.Int32);
             p.Value = value;
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, int? value)
+        public SQLiteParameter GetParameter(string name, int? value)
         {
             var p = new SQLiteParameter(name, DbType.Int32);
             p.Value = value;
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, decimal value)
+        public SQLiteParameter GetParameter(string name, decimal value)
         {
             var p = new SQLiteParameter(name, DbType.Decimal);
             p.Value = value;
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, decimal? value)
+        public SQLiteParameter GetParameter(string name, decimal? value)
         {
             var p = new SQLiteParameter(name, DbType.Decimal);
             p.Value = value;
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, DateTimeOffset value)
+        public SQLiteParameter GetParameter(string name, DateTimeOffset value)
         {
             var p = new SQLiteParameter(name, DbType.Int64);
             p.Value = value.ToUnixTimeMilliseconds();
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, Guid value)
+        public SQLiteParameter GetParameter(string name, Guid value)
         {
             var p = new SQLiteParameter(name, DbType.Decimal);
             p.Value = value.ToByteArray();
             return p;
         }
 
-        private SQLiteParameter GetParameter(string name, string value)
+        public SQLiteParameter GetParameter(string name, string value)
         {
             var p = new SQLiteParameter(name, DbType.String);
             p.Value = value;

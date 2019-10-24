@@ -28,26 +28,37 @@ namespace NightFlux.UI
         public MainWindow()
         {
             InitializeComponent();
-            NightFluxPlotModel = CreateModel();
-            DataContext = this;
         }
 
-        private PlotModel CreateModel()
+        private async Task<PlotModel> GetModel()
         {
+            var nv = new NightView(App.Configuration);
+            var dtStart = DateTimeOffset.Now.AddHours(-6);
+            var dtEnd = DateTimeOffset.Now;
+
             var model = new PlotModel { Title = "Something" };
-            model.Axes.Add(new LinearAxis { Position = AxisPosition.Bottom });
+            model.Axes.Add(new DateTimeAxis {
+                Position = AxisPosition.Bottom,
+                Minimum = DateTimeAxis.ToDouble(dtStart.LocalDateTime),
+                Maximum = DateTimeAxis.ToDouble(dtEnd.LocalDateTime) });
             model.Axes.Add(new LinearAxis { Position = AxisPosition.Left });
 
             var lineSeries = new LineSeries();
-            var r = new Random();
-            for (int x=0; x<50; x++)
+            await foreach(var gv in nv.GlucoseValues(dtStart, dtEnd))
             {
-                lineSeries.Points.Add(new DataPoint(x, r.Next(-100, 100)));
+                lineSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (double)gv.Value));
             }
+
             lineSeries.Title = "Nice";
             model.Series.Add(lineSeries);
 
             return model;
+        }
+
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            NightFluxPlotModel = await GetModel();
+            DataContext = this;
         }
     }
 }

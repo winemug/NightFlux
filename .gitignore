@@ -341,3 +341,4 @@ healthchecksdb
 **/Secret.json
 /Properties/launchSettings.json
 /NightFlux/Properties/launchSettings.json
+/NightFlux.UI/Properties/launchSettings.json
