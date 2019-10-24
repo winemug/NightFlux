@@ -28,15 +28,17 @@ namespace NightFlux.UI
         private async Task<PlotModel> GetModel()
         {
             var nv = new NightView(App.Configuration);
-            var dtStart = DateTimeOffset.Now.AddHours(-6);
+            var dtStart = DateTimeOffset.Now.AddDays(-30);
             var dtEnd = DateTimeOffset.Now;
 
             var model = new PlotModel { Title = "Something" };
             model.Axes.Add(new DateTimeAxis {
                 Position = AxisPosition.Bottom,
-                Minimum = DateTimeAxis.ToDouble(dtStart.LocalDateTime),
+                Minimum = DateTimeAxis.ToDouble(dtEnd.AddHours(-6).LocalDateTime),
                 Maximum = DateTimeAxis.ToDouble(dtEnd.LocalDateTime) });
-            model.Axes.Add(new LinearAxis { Position = AxisPosition.Left });
+            model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
+                Minimum = 20,
+                Maximum = 400});
 
             var lineSeries = new LineSeries();
             await foreach(var gv in nv.GlucoseValues(dtStart, dtEnd))
