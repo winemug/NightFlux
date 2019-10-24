@@ -104,6 +104,33 @@ namespace NightFlux
             await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastTempBasalDate();
             await nsql.FinalizeBatchImport();
+
+            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
+            var filter = new FilterDefinitionBuilder<BsonDocument>()
+                    .And(
+                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("eventType", "Temp Basal"),
+                        new FilterDefinitionBuilder<BsonDocument>()
+                            .Or(
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
+
+            using var cursor = await entries.Find(filter).ToCursorAsync();
+            while (await cursor.MoveNextAsync())
+            {
+                foreach (BsonDocument document in cursor.Current)
+                {
+                    var tempBasal = await ParseTempBasal(document);
+                    if (tempBasal.HasValue)
+                        await nsql.Import(tempBasal.Value);
+                }
+            }
+
         }
 
         public async Task ImportBoluses()
@@ -114,15 +141,38 @@ namespace NightFlux
         {
         }
 
+        private async Task<TempBasal?> ParseTempBasal(BsonDocument document)
+        {
+            TempBasal? ret = null;
+
+            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
+            if (!eventTime!.HasValue)
+                eventTime = document.SafeDateTimeOffset("timestamp");
+
+            if (!eventTime.HasValue)
+                return null;
+
+            var duration = document.SafeInt("duration") ?? 0;
+            var absoluteRate = document.SafePreciseDecimal("absolute", 0.05m);
+            var percentage = document.SafeInt("percent");
+
+            return new TempBasal {
+                Time = eventTime.Value,
+                Duration = duration,
+                AbsoluteRate = absoluteRate,
+                Percentage = percentage
+            };
+        }
+
         private async Task<BasalProfile?> ParseProfileSwitch(BsonDocument document)
         {
             BasalProfile? ret = null;
 
             DateTimeOffset? profileSwitchTime = document.SafeDateTimeOffset("NSCLIENT_ID");
-            if (!profileSwitchTime!.HasValue)
+            if (!profileSwitchTime.HasValue)
                 profileSwitchTime = document.SafeDateTimeOffset("timestamp");
 
-            if (!profileSwitchTime!.HasValue)
+            if (!profileSwitchTime.HasValue)
                 return null;
 
             var joProfile = document.SafeJsonObject("profileJson");

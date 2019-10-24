@@ -79,6 +79,10 @@ namespace NightFlux
                 {
                     await ImportProfile((BasalProfile) iv, conn);
                 }
+                else if (iv is TempBasal)
+                {
+                    await ImportTempBasal((TempBasal) iv, conn);
+                }
             }
             await tran.CommitAsync();
         }
@@ -102,6 +106,18 @@ namespace NightFlux
                     GetParameter("u", basalProfile.UtcOffsetInMinutes),
                     GetParameter("d", basalProfile.Duration),
                     GetParameter("r", JsonConvert.SerializeObject(basalProfile.BasalRates))
+                }, conn);
+        }
+
+        private async Task ImportTempBasal(TempBasal tempBasal, SQLiteConnection conn)
+        {
+            await ExecuteNonQuery("INSERT INTO tempbasal(time,duration,absolute,percentage) VALUES(@t, @d, @u, @p)",
+                new []
+                {
+                    GetParameter("t", tempBasal.Time),
+                    GetParameter("d", tempBasal.Duration),
+                    GetParameter("u", tempBasal.AbsoluteRate),
+                    GetParameter("p", tempBasal.Percentage)
                 }, conn);
         }
 
@@ -141,7 +157,7 @@ namespace NightFlux
                 "(time INTEGER, utc_offset INTEGER, duration INTEGER, rates TEXT);");
             
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS tempbasal" +
-                "(time INTEGER, duration INTEGER, rate REAL);");
+                "(time INTEGER, duration INTEGER, absolute REAL, percentage INTEGER);");
         }
 
         private async Task<SQLiteConnection> GetConnection()
@@ -225,7 +241,21 @@ namespace NightFlux
             return p;
         }
 
+        private SQLiteParameter GetParameter(string name, int? value)
+        {
+            var p = new SQLiteParameter(name, DbType.Int32);
+            p.Value = value;
+            return p;
+        }
+
         private SQLiteParameter GetParameter(string name, decimal value)
+        {
+            var p = new SQLiteParameter(name, DbType.Decimal);
+            p.Value = value;
+            return p;
+        }
+
+        private SQLiteParameter GetParameter(string name, decimal? value)
         {
             var p = new SQLiteParameter(name, DbType.Decimal);
             p.Value = value;
