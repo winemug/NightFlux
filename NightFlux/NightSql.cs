@@ -83,6 +83,10 @@ namespace NightFlux
                 {
                     await ImportTempBasal((TempBasal) iv, conn);
                 }
+                else if (iv is Bolus)
+                {
+                    await ImportBolus((Bolus) iv, conn);
+                }
             }
             await tran.CommitAsync();
         }
@@ -121,6 +125,16 @@ namespace NightFlux
                 }, conn);
         }
 
+        private async Task ImportBolus(Bolus bolus, SQLiteConnection conn)
+        {
+            await ExecuteNonQuery("INSERT INTO bolus(time,amount) VALUES(@t, @a)",
+                new []
+                {
+                    GetParameter("t", bolus.Time),
+                    GetParameter("a", bolus.Amount)
+                }, conn);
+        }
+
         public async Task<long> GetLastBgDate()
         {
             await foreach (var dr in ExecuteQuery("SELECT time FROM bg ORDER BY time DESC LIMIT 1"))
@@ -148,6 +162,15 @@ namespace NightFlux
             return 0;
         }
 
+        public async Task<long> GetLastBolusDate()
+        {
+            await foreach (var dr in ExecuteQuery("SELECT time FROM bolus ORDER BY time DESC LIMIT 1"))
+            {
+                return dr.GetInt64(0);
+            }
+            return 0;
+        }
+
         private async Task Initialize()
         {
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bg" +
@@ -158,6 +181,9 @@ namespace NightFlux
             
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS tempbasal" +
                 "(time INTEGER, duration INTEGER, absolute REAL, percentage INTEGER);");
+
+            await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bolus" +
+                "(time INTEGER, amount REAL);");
         }
 
         private async Task<SQLiteConnection> GetConnection()
