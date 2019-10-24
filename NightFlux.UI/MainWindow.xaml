@@ -9,6 +9,13 @@
         Title="MainWindow" Height="450" Width="800"
         Loaded="Window_Loaded">
     <Grid>
-        <o:PlotView Model="{Binding NightFluxPlotModel}"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+            <Button Name="SyncButton" Width="100" Height="30" Click="Sync_Button_Click">Sync Data</Button>
+        </Grid>
+        <o:PlotView Grid.Row="1" Model="{Binding MainPlotModel}"/>
     </Grid>
 </Window>

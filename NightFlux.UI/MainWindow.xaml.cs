@@ -23,42 +23,36 @@ namespace NightFlux.UI
     /// </summary>
     public partial class MainWindow : Window
     {
-        public PlotModel NightFluxPlotModel { get; set;}
+        private MainPlotViewModel viewModel;
 
         public MainWindow()
         {
             InitializeComponent();
-        }
-
-        private async Task<PlotModel> GetModel()
-        {
-            var nv = new NightView(App.Configuration);
-            var dtStart = DateTimeOffset.Now.AddHours(-6);
-            var dtEnd = DateTimeOffset.Now;
-
-            var model = new PlotModel { Title = "Something" };
-            model.Axes.Add(new DateTimeAxis {
-                Position = AxisPosition.Bottom,
-                Minimum = DateTimeAxis.ToDouble(dtStart.LocalDateTime),
-                Maximum = DateTimeAxis.ToDouble(dtEnd.LocalDateTime) });
-            model.Axes.Add(new LinearAxis { Position = AxisPosition.Left });
-
-            var lineSeries = new LineSeries();
-            await foreach(var gv in nv.GlucoseValues(dtStart, dtEnd))
-            {
-                lineSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (double)gv.Value));
-            }
-
-            lineSeries.Title = "Nice";
-            model.Series.Add(lineSeries);
-
-            return model;
+            viewModel = new MainPlotViewModel();
+            this.DataContext = viewModel;
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            NightFluxPlotModel = await GetModel();
-            DataContext = this;
+            viewModel.Update();
+        }
+
+        private async void Sync_Button_Click(object sender, RoutedEventArgs e)
+        {
+            SyncButton.IsEnabled = false;
+            using(var sync = new NightSync(App.Configuration))
+            {
+                await Task.WhenAll(
+                        sync.ImportBg(),
+                        sync.ImportBasalProfiles(),
+                        sync.ImportTempBasals(),
+                        sync.ImportBoluses(),
+                        sync.ImportExtendedBoluses(),
+                        sync.ImportCarbs()
+                    );
+            }
+            viewModel.Update();
+            SyncButton.IsEnabled = true;
         }
     }
 }
