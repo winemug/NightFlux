@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -79,9 +80,30 @@ namespace NightFlux
             await tran.CommitAsync();
         }
 
+        public async Task ImportProfile(BasalProfile basalProfile)
+        {
+            await ExecuteNonQuery("INSERT INTO basal(time,utc_offset,duration,rates) VALUES(@t, @u, @d, @r)",
+                new []
+                {
+                    GetParameter("t", basalProfile.Time),
+                    GetParameter("v", basalProfile.UtcOffsetInMinutes),
+                    GetParameter("d", basalProfile.Duration),
+                    GetParameter("r", JsonConvert.SerializeObject(basalProfile.BasalRates))
+                });
+        }
+
         public async Task<long> GetLastBgDate()
         {
             await foreach (var dr in ExecuteQuery("SELECT time FROM bg ORDER BY time DESC LIMIT 1"))
+            {
+                return dr.GetInt64(0);
+            }
+            return 0;
+        }
+
+        public async Task<long> GetLastProfileChangeDate()
+        {
+            await foreach (var dr in ExecuteQuery("SELECT time FROM basal ORDER BY time DESC LIMIT 1"))
             {
                 return dr.GetInt64(0);
             }
@@ -94,7 +116,7 @@ namespace NightFlux
                 "(time INTEGER, value REAL);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS basal" +
-                "(time INTEGER, value REAL);");
+                "(time INTEGER, utc_offset INTEGER, duration INTEGER, rates TEXT);");
         }
 
         private async Task<SQLiteConnection> GetConnection()

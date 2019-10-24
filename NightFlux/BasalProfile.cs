@@ -9,5 +9,6 @@ namespace NightFlux
         public DateTimeOffset Time;
         public decimal[] BasalRates;
         public int UtcOffsetInMinutes;
+        public int Duration;
     }
 }
