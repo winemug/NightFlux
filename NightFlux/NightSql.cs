@@ -20,7 +20,7 @@ namespace NightFlux
 
         private NightSql(Configuration configuration)
         {
-            SqliteConnectionString = $"Data Source={configuration.SqlitePath};Version=3;Pooling=True;PRAGMA journal_mode=WAL";
+            SqliteConnectionString = $"Data Source={configuration.SqlitePath};Version=3;Pooling=True";
         }
 
         public static async Task<NightSql> GetInstance(Configuration configuration)
@@ -87,6 +87,10 @@ namespace NightFlux
                 {
                     await ImportBolus((Bolus) iv, conn);
                 }
+                else if (iv is Carb)
+                {
+                    await ImportCarb((Carb) iv, conn);
+                }
             }
             await tran.CommitAsync();
         }
@@ -135,6 +139,32 @@ namespace NightFlux
                 }, conn);
         }
 
+        private async Task ImportCarb(Carb carb, SQLiteConnection conn)
+        {
+            // carbs are <sometimes> duplicated in NS model (because wtf)
+            // so filter them out
+
+            // doesn't work in batch import, need another way
+            //var queryTask = ExecuteQuery("SELECT time FROM carb WHERE time > @t1 AND time < @t2",
+            //    new []
+            //    {
+            //        GetParameter("t1", carb.Time.AddSeconds(-60)),
+            //        GetParameter("t2", carb.Time.AddSeconds(60))
+            //    });
+
+            //await foreach (var dr in queryTask)
+            //{
+            //    return;
+            //}
+
+            await ExecuteNonQuery("INSERT INTO carb(time,amount) VALUES(@t, @a)",
+                new []
+                {
+                    GetParameter("t", carb.Time),
+                    GetParameter("a", carb.Amount)
+                }, conn);
+        }
+
         public async Task<long> GetLastBgDate()
         {
             await foreach (var dr in ExecuteQuery("SELECT time FROM bg ORDER BY time DESC LIMIT 1"))
@@ -171,6 +201,15 @@ namespace NightFlux
             return 0;
         }
 
+        public async Task<long> GetLastCarbDate()
+        {
+            await foreach (var dr in ExecuteQuery("SELECT time FROM carb ORDER BY time DESC LIMIT 1"))
+            {
+                return dr.GetInt64(0);
+            }
+            return 0;
+        }
+
         private async Task Initialize()
         {
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bg" +
@@ -183,6 +222,9 @@ namespace NightFlux
                 "(time INTEGER, duration INTEGER, absolute REAL, percentage INTEGER);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bolus" +
+                "(time INTEGER, amount REAL);");
+
+            await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS carb" +
                 "(time INTEGER, amount REAL);");
         }
 
@@ -245,6 +287,10 @@ namespace NightFlux
                         cmd.Parameters.Add(p);
                 }
                 return await cmd.ExecuteNonQueryAsync();
+            }
+            catch
+            {
+                throw;
             }
             finally
             {

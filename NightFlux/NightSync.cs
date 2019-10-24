@@ -103,7 +103,6 @@ namespace NightFlux
             var nsql = await NightSql.GetInstance(Configuration);
             await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastTempBasalDate();
-            await nsql.FinalizeBatchImport();
 
             var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
@@ -130,6 +129,7 @@ namespace NightFlux
                         await nsql.Import(tempBasal.Value);
                 }
             }
+            await nsql.FinalizeBatchImport();
         }
 
         public async Task ImportBoluses()
@@ -137,7 +137,6 @@ namespace NightFlux
             var nsql = await NightSql.GetInstance(Configuration);
             await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastBolusDate();
-            await nsql.FinalizeBatchImport();
 
             var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
@@ -164,10 +163,61 @@ namespace NightFlux
                         await nsql.Import(bolus.Value);
                 }
             }
+            await nsql.FinalizeBatchImport();
         }
 
         public async Task ImportCarbs()
         {
+            var nsql = await NightSql.GetInstance(Configuration);
+            await nsql.StartBatchImport();
+            var lastTimestamp = await nsql.GetLastCarbDate();
+
+            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
+            var filter = new FilterDefinitionBuilder<BsonDocument>()
+                    .And(
+                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("carbs", 0),
+                        new FilterDefinitionBuilder<BsonDocument>()
+                            .Or(
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
+
+            using var cursor = await entries.Find(filter).ToCursorAsync();
+            while (await cursor.MoveNextAsync())
+            {
+                foreach (BsonDocument document in cursor.Current)
+                {
+                    var carb = await ParseCarbs(document);
+                    if (carb.HasValue)
+                        await nsql.Import(carb.Value);
+                }
+            }
+            await nsql.FinalizeBatchImport();
+        }
+
+        private async Task<Carb?> ParseCarbs(BsonDocument document)
+        {
+            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
+            if (!eventTime!.HasValue)
+                eventTime = document.SafeDateTimeOffset("timestamp");
+
+            if (!eventTime.HasValue)
+                return null;
+
+            var amount = document.SafePreciseDecimal("carbs", 0.1m);
+
+            if (amount <= 0)
+                return null;
+
+            return new Carb {
+                Time = eventTime.Value,
+                Amount = amount.Value
+            };
         }
 
         private async Task<Bolus?> ParseBolus(BsonDocument document)
