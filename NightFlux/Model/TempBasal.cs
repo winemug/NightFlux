@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace NightFlux
+namespace NightFlux.Model
 {
-    public struct BgValue
+    public struct TempBasal : IEntity
     {
         public DateTimeOffset Time;
-        public decimal Value;
+        public int Duration;
+        public decimal Rate;
     }
 }

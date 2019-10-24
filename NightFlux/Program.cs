@@ -19,6 +19,7 @@ namespace NightFlux
                     await Task.WhenAll(
                             sync.ImportBg(),
                             sync.ImportBasalProfiles(),
+                            sync.ImportTempBasals(),
                             sync.ImportBoluses(),
                             sync.ImportCarbs()
                         );

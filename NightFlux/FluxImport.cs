@@ -1,6 +1,7 @@
 ﻿using InfluxData.Net.Common.Enums;
 using InfluxData.Net.InfluxDb;
 using InfluxData.Net.InfluxDb.Models;
+using NightFlux.Model;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

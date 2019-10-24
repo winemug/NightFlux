@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TimeZoneConverter;
 using Newtonsoft.Json.Linq;
+using NightFlux.Model;
 
 namespace NightFlux
 {
@@ -32,6 +33,7 @@ namespace NightFlux
         public async Task ImportBg()
         {
             var nsql = await NightSql.GetInstance(Configuration);
+            await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastBgDate();
             var entries = MongoDatabase.GetCollection<BsonDocument>("entries");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
@@ -41,7 +43,6 @@ namespace NightFlux
                 );
 
             using var cursor = await entries.Find(filter).ToCursorAsync();
-            await nsql.StartBatchImportBg();
             while (await cursor.MoveNextAsync())
             {
                 foreach (BsonDocument document in cursor.Current)
@@ -51,7 +52,7 @@ namespace NightFlux
 
                     if (dt.HasValue && gv.HasValue)
                     {
-                        await nsql.ImportBg(new BgValue
+                        await nsql.Import(new BgValue
                         {
                             Value = gv.Value,
                             Time = dt.Value
@@ -59,12 +60,14 @@ namespace NightFlux
                     }
                 }
             }
-            await nsql.FinalizeBatchImportBg();
+
+            await nsql.FinalizeBatchImport();
         }
 
         public async Task ImportBasalProfiles()
         {
             var nsql = await NightSql.GetInstance(Configuration);
+            await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastProfileChangeDate();
             var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
@@ -89,9 +92,18 @@ namespace NightFlux
                 {
                     var basalProfile = await ParseProfileSwitch(document);
                     if (basalProfile.HasValue)
-                        await nsql.ImportProfile(basalProfile.Value);
+                        await nsql.Import(basalProfile.Value);
                 }
             }
+            await nsql.FinalizeBatchImport();
+        }
+
+        public async Task ImportTempBasals()
+        {
+            var nsql = await NightSql.GetInstance(Configuration);
+            await nsql.StartBatchImport();
+            var lastTimestamp = await nsql.GetLastTempBasalDate();
+            await nsql.FinalizeBatchImport();
         }
 
         public async Task ImportBoluses()

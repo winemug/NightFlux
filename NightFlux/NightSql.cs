@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using NightFlux.Model;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -14,7 +15,7 @@ namespace NightFlux
     {
         private string SqliteConnectionString;
 
-        private ConcurrentQueue<BgValue> BatchBgValues;
+        private ConcurrentQueue<IEntity> BatchEntities;
         private ConcurrentBag<Task> BatchTasks;
 
         private NightSql(Configuration configuration)
@@ -33,54 +34,66 @@ namespace NightFlux
         {
         }
 
-        public async Task StartBatchImportBg()
+        public async Task StartBatchImport()
         {
-            BatchBgValues = new ConcurrentQueue<BgValue>();
+            BatchEntities = new ConcurrentQueue<IEntity>();
             BatchTasks = new ConcurrentBag<Task>();
         }
 
-        public async Task ImportBg(BgValue bgValue)
+        public async Task Import(IEntity record)
         {
-            BatchBgValues.Enqueue(bgValue);
+            BatchEntities.Enqueue(record);
 
-            if (BatchBgValues.Count > 1024)
+            if (BatchEntities.Count > 1024)
             {
-                var list = new List<BgValue>();
-                BgValue bgv;
-                while(BatchBgValues.TryDequeue(out bgv))
-                    list.Add(bgValue);
+                var list = new List<IEntity>();
+                IEntity iv;
+                while(BatchEntities.TryDequeue(out iv))
+                    list.Add(iv);
 
-                BatchTasks.Add(InsertBatchBg(list));
+                BatchTasks.Add(InsertBatchEntities(list));
             }
         }
 
-        public async Task FinalizeBatchImportBg()
+        public async Task FinalizeBatchImport()
         {
-            var list = new List<BgValue>();
-            BgValue bgValue;
-            while(BatchBgValues.TryDequeue(out bgValue))
-                list.Add(bgValue);
-            BatchTasks.Add(InsertBatchBg(list));
+            var list = new List<IEntity>();
+            IEntity iv;
+            while(BatchEntities.TryDequeue(out iv))
+                list.Add(iv);
+            BatchTasks.Add(InsertBatchEntities(list));
             await Task.WhenAll(BatchTasks.ToArray());
         }
 
-        private async Task InsertBatchBg(List<BgValue> bgValues)
+        private async Task InsertBatchEntities(List<IEntity> entities)
         {
             using var conn = await GetConnection();
             using var tran = await conn.BeginTransactionAsync();
-            foreach(var bgValue in bgValues)
+            foreach(var iv in entities)
             {
-                await ExecuteNonQuery("INSERT INTO bg(time,value) VALUES(@t, @v)",
-                    new []
-                    {
-                        GetParameter("t", bgValue.Time),
-                        GetParameter("v", bgValue.Value)
-                    }, conn);
+                if (iv is BgValue)
+                {
+                    await ImportBG((BgValue)iv, conn);
+                }
+                else if (iv is BasalProfile)
+                {
+                    await ImportProfile((BasalProfile) iv, conn);
+                }
             }
             await tran.CommitAsync();
         }
 
-        public async Task ImportProfile(BasalProfile basalProfile)
+        private async Task ImportBG(BgValue bgValue, SQLiteConnection conn)
+        {
+            await ExecuteNonQuery("INSERT INTO bg(time,value) VALUES(@t, @v)",
+                new []
+                {
+                    GetParameter("t", bgValue.Time),
+                    GetParameter("v", bgValue.Value)
+                }, conn);
+        }
+
+        private async Task ImportProfile(BasalProfile basalProfile, SQLiteConnection conn)
         {
             await ExecuteNonQuery("INSERT INTO basal(time,utc_offset,duration,rates) VALUES(@t, @u, @d, @r)",
                 new []
@@ -89,7 +102,7 @@ namespace NightFlux
                     GetParameter("u", basalProfile.UtcOffsetInMinutes),
                     GetParameter("d", basalProfile.Duration),
                     GetParameter("r", JsonConvert.SerializeObject(basalProfile.BasalRates))
-                });
+                }, conn);
         }
 
         public async Task<long> GetLastBgDate()
@@ -110,6 +123,15 @@ namespace NightFlux
             return 0;
         }
 
+        public async Task<long> GetLastTempBasalDate()
+        {
+            await foreach (var dr in ExecuteQuery("SELECT time FROM tempbasal ORDER BY time DESC LIMIT 1"))
+            {
+                return dr.GetInt64(0);
+            }
+            return 0;
+        }
+
         private async Task Initialize()
         {
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bg" +
@@ -117,6 +139,9 @@ namespace NightFlux
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS basal" +
                 "(time INTEGER, utc_offset INTEGER, duration INTEGER, rates TEXT);");
+            
+            await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS tempbasal" +
+                "(time INTEGER, duration INTEGER, rate REAL);");
         }
 
         private async Task<SQLiteConnection> GetConnection()

@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace NightFlux
+namespace NightFlux.Model
 {
-    public struct BasalProfile
+    public struct BasalProfile : IEntity
     {
         public DateTimeOffset Time;
         public decimal[] BasalRates;
