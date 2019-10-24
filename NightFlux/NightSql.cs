@@ -86,7 +86,7 @@ namespace NightFlux
                 new []
                 {
                     GetParameter("t", basalProfile.Time),
-                    GetParameter("v", basalProfile.UtcOffsetInMinutes),
+                    GetParameter("u", basalProfile.UtcOffsetInMinutes),
                     GetParameter("d", basalProfile.Duration),
                     GetParameter("r", JsonConvert.SerializeObject(basalProfile.BasalRates))
                 });
@@ -184,6 +184,20 @@ namespace NightFlux
                 if (closeConnection)
                     await conn?.CloseAsync();
             }
+        }
+
+        private SQLiteParameter GetParameter(string name, long value)
+        {
+            var p = new SQLiteParameter(name, DbType.Int64);
+            p.Value = value;
+            return p;
+        }
+
+        private SQLiteParameter GetParameter(string name, int value)
+        {
+            var p = new SQLiteParameter(name, DbType.Int32);
+            p.Value = value;
+            return p;
         }
 
         private SQLiteParameter GetParameter(string name, decimal value)

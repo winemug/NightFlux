@@ -43,11 +43,16 @@ namespace NightFlux
             BsonValue bsonValue;
             if (bsonDocument.TryGetValue(element, out bsonValue))
             {
-                if (bsonValue != null && !bsonValue.IsBsonNull && bsonValue.IsDouble)
+                if (bsonValue != null && !bsonValue.IsBsonNull)
                 {
                     try
                     {
-                        ret = bsonValue.AsDouble.ToPreciseDecimal(precision);
+                        if (bsonValue.IsDouble)
+                            ret = bsonValue.AsDouble.ToPreciseDecimal(precision);
+                        else if (bsonValue.IsInt32)
+                            ret = bsonValue.AsInt32;
+                        else if (bsonValue.IsInt64)
+                            ret = bsonValue.AsInt64;
                     }
                     catch { }
                 }

@@ -69,12 +69,18 @@ namespace NightFlux
             var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
                     .And(
-                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("type", "Profile Switch"),
+                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("eventType", "Profile Switch"),
                         new FilterDefinitionBuilder<BsonDocument>().Exists("profileJson"),
                         new FilterDefinitionBuilder<BsonDocument>()
                             .Or(
-                                    new FilterDefinitionBuilder<BsonDocument>().Gt<long>("NSCLIENT_ID", lastTimestamp)),
-                                    new FilterDefinitionBuilder<BsonDocument>().Gt<long>("timestamp", lastTimestamp));
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
 
             using var cursor = await entries.Find(filter).ToCursorAsync();
             while (await cursor.MoveNextAsync())
