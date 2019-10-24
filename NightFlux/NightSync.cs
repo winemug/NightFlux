@@ -169,7 +169,6 @@ namespace NightFlux
         public async Task ImportCarbs()
         {
             var nsql = await NightSql.GetInstance(Configuration);
-            await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastCarbDate();
 
             var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
@@ -197,7 +196,6 @@ namespace NightFlux
                         await nsql.Import(carb.Value);
                 }
             }
-            await nsql.FinalizeBatchImport();
         }
 
         private async Task<Carb?> ParseCarbs(BsonDocument document)
@@ -216,7 +214,8 @@ namespace NightFlux
 
             return new Carb {
                 Time = eventTime.Value,
-                Amount = amount.Value
+                Amount = amount.Value,
+                ImportId = document.SafeString("created_at")
             };
         }
 

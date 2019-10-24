@@ -95,5 +95,23 @@ namespace NightFlux
             }
             return ret;
         }
+
+        public static string SafeString(this BsonDocument bsonDocument, string element)
+        {
+            string ret = null;
+            BsonValue bsonValue;
+            if (bsonDocument.TryGetValue(element, out bsonValue))
+            {
+                if (bsonValue != null && !bsonValue.IsBsonNull && bsonValue.IsString)
+                {
+                    try
+                    {
+                        ret = bsonValue.AsString;
+                    }
+                    catch { }
+                }
+            }
+            return ret;
+        }
     }
 }

@@ -42,16 +42,23 @@ namespace NightFlux
 
         public async Task Import(IEntity record)
         {
-            BatchEntities.Enqueue(record);
-
-            if (BatchEntities.Count > 1024)
+            if (BatchEntities == null)
             {
-                var list = new List<IEntity>();
-                IEntity iv;
-                while(BatchEntities.TryDequeue(out iv))
-                    list.Add(iv);
+                InsertEntity(record);
+            }
+            else
+            {
+                BatchEntities.Enqueue(record);
 
-                BatchTasks.Add(InsertBatchEntities(list));
+                if (BatchEntities.Count > 1024)
+                {
+                    var list = new List<IEntity>();
+                    IEntity iv;
+                    while(BatchEntities.TryDequeue(out iv))
+                        list.Add(iv);
+
+                    BatchTasks.Add(InsertBatchEntities(list));
+                }
             }
         }
 
@@ -71,28 +78,33 @@ namespace NightFlux
             using var tran = await conn.BeginTransactionAsync();
             foreach(var iv in entities)
             {
-                if (iv is BgValue)
-                {
-                    await ImportBG((BgValue)iv, conn);
-                }
-                else if (iv is BasalProfile)
-                {
-                    await ImportProfile((BasalProfile) iv, conn);
-                }
-                else if (iv is TempBasal)
-                {
-                    await ImportTempBasal((TempBasal) iv, conn);
-                }
-                else if (iv is Bolus)
-                {
-                    await ImportBolus((Bolus) iv, conn);
-                }
-                else if (iv is Carb)
-                {
-                    await ImportCarb((Carb) iv, conn);
-                }
+                await InsertEntity(iv, conn);
             }
             await tran.CommitAsync();
+        }
+
+        private async Task InsertEntity(IEntity iv, SQLiteConnection conn = null)
+        {
+            if (iv is BgValue)
+            {
+                await ImportBG((BgValue)iv, conn);
+            }
+            else if (iv is BasalProfile)
+            {
+                await ImportProfile((BasalProfile) iv, conn);
+            }
+            else if (iv is TempBasal)
+            {
+                await ImportTempBasal((TempBasal) iv, conn);
+            }
+            else if (iv is Bolus)
+            {
+                await ImportBolus((Bolus) iv, conn);
+            }
+            else if (iv is Carb)
+            {
+                await ImportCarb((Carb) iv, conn);
+            }
         }
 
         private async Task ImportBG(BgValue bgValue, SQLiteConnection conn)
@@ -141,28 +153,23 @@ namespace NightFlux
 
         private async Task ImportCarb(Carb carb, SQLiteConnection conn)
         {
-            // carbs are <sometimes> duplicated in NS model (because wtf)
-            // so filter them out
-
-            // doesn't work in batch import, need another way
-            //var queryTask = ExecuteQuery("SELECT time FROM carb WHERE time > @t1 AND time < @t2",
-            //    new []
-            //    {
-            //        GetParameter("t1", carb.Time.AddSeconds(-60)),
-            //        GetParameter("t2", carb.Time.AddSeconds(60))
-            //    });
-
-            //await foreach (var dr in queryTask)
-            //{
-            //    return;
-            //}
-
-            await ExecuteNonQuery("INSERT INTO carb(time,amount) VALUES(@t, @a)",
-                new []
-                {
-                    GetParameter("t", carb.Time),
-                    GetParameter("a", carb.Amount)
-                }, conn);
+            try
+            {
+                await ExecuteNonQuery("INSERT INTO carb(time,amount,import_id) VALUES(@t, @a, @i)",
+                    new []
+                    {
+                        GetParameter("t", carb.Time),
+                        GetParameter("a", carb.Amount),
+                        GetParameter("i", carb.ImportId),
+                    }, conn);
+            }
+            catch(SQLiteException se)
+            {
+                // carbs are <sometimes> duplicated in NS model (because wtf)
+                // so filter them out via ignoring error on unique index constraint
+                if (se.ErrorCode != 19)
+                    throw;
+            }
         }
 
         public async Task<long> GetLastBgDate()
@@ -225,7 +232,9 @@ namespace NightFlux
                 "(time INTEGER, amount REAL);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS carb" +
-                "(time INTEGER, amount REAL);");
+                "(time INTEGER, amount REAL, import_id TEXT);");
+
+            await ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_carb_import ON carb(import_id)");
         }
 
         private async Task<SQLiteConnection> GetConnection()
@@ -291,6 +300,34 @@ namespace NightFlux
             catch
             {
                 throw;
+            }
+            finally
+            {
+                if (closeConnection)
+                    await conn?.CloseAsync();
+            }
+        }
+
+        private async Task<object> ExecuteScalar(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
+        {
+            bool closeConnection = false;
+            try
+            {
+                if (conn == null)
+                {
+                    conn = await GetConnection();
+                    closeConnection = true;
+                }
+
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = sql;
+                if (parameters != null)
+                {
+                    foreach(var p in parameters)
+                        cmd.Parameters.Add(p);
+                }
+
+                return await cmd.ExecuteScalarAsync();
             }
             finally
             {
