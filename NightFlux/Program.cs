@@ -21,6 +21,7 @@ namespace NightFlux
                             sync.ImportBasalProfiles(),
                             sync.ImportTempBasals(),
                             sync.ImportBoluses(),
+                            sync.ImportExtendedBoluses(),
                             sync.ImportCarbs()
                         );
                 }

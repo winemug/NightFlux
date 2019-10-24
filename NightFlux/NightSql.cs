@@ -105,6 +105,10 @@ namespace NightFlux
             {
                 await ImportCarb((Carb) iv, conn);
             }
+            else if (iv is ExtendedBolus)
+            {
+                await ImportExtendedBolus((ExtendedBolus) iv, conn);
+            }
         }
 
         private async Task ImportBG(BgValue bgValue, SQLiteConnection conn)
@@ -148,6 +152,17 @@ namespace NightFlux
                 {
                     GetParameter("t", bolus.Time),
                     GetParameter("a", bolus.Amount)
+                }, conn);
+        }
+
+        private async Task ImportExtendedBolus(ExtendedBolus extendedBolus, SQLiteConnection conn)
+        {
+            await ExecuteNonQuery("INSERT INTO extended_bolus(time,amount,duration) VALUES(@t, @a, @d)",
+                new []
+                {
+                    GetParameter("t", extendedBolus.Time),
+                    GetParameter("a", extendedBolus.Amount),
+                    GetParameter("d", extendedBolus.Duration)
                 }, conn);
         }
 
@@ -208,6 +223,15 @@ namespace NightFlux
             return 0;
         }
 
+        public async Task<long> GetLastExtendedBolusDate()
+        {
+            await foreach (var dr in ExecuteQuery("SELECT time FROM extended_bolus ORDER BY time DESC LIMIT 1"))
+            {
+                return dr.GetInt64(0);
+            }
+            return 0;
+        }
+
         public async Task<long> GetLastCarbDate()
         {
             await foreach (var dr in ExecuteQuery("SELECT time FROM carb ORDER BY time DESC LIMIT 1"))
@@ -230,6 +254,9 @@ namespace NightFlux
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bolus" +
                 "(time INTEGER, amount REAL);");
+
+            await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS extended_bolus" +
+                "(time INTEGER, amount REAL, duration INTEGER);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS carb" +
                 "(time INTEGER, amount REAL, import_id TEXT);");

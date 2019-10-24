@@ -198,6 +198,40 @@ namespace NightFlux
             }
         }
 
+        public async Task ImportExtendedBoluses()
+        {
+            var nsql = await NightSql.GetInstance(Configuration);
+            await nsql.StartBatchImport();
+            var lastTimestamp = await nsql.GetLastExtendedBolusDate();
+
+            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
+            var filter = new FilterDefinitionBuilder<BsonDocument>()
+                    .And(
+                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("eventType", "Combo Bolus"),
+                        new FilterDefinitionBuilder<BsonDocument>()
+                            .Or(
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
+                                new FilterDefinitionBuilder<BsonDocument>()
+                                    .And(
+                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
+                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
+
+            using var cursor = await entries.Find(filter).ToCursorAsync();
+            while (await cursor.MoveNextAsync())
+            {
+                foreach (BsonDocument document in cursor.Current)
+                {
+                    var extendedBolus = await ParseExtendedBolus(document);
+                    if (extendedBolus.HasValue)
+                        await nsql.Import(extendedBolus.Value);
+                }
+            }
+            await nsql.FinalizeBatchImport();
+        }
+
         private async Task<Carb?> ParseCarbs(BsonDocument document)
         {
             DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
@@ -236,6 +270,27 @@ namespace NightFlux
             return new Bolus {
                 Time = eventTime.Value,
                 Amount = amount.Value
+            };
+        }
+
+        private async Task<ExtendedBolus?> ParseExtendedBolus(BsonDocument document)
+        {
+            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
+            if (!eventTime!.HasValue)
+                eventTime = document.SafeDateTimeOffset("timestamp");
+
+            if (!eventTime.HasValue)
+                return null;
+
+            var duration = document.SafeInt("duration") ?? 0;
+            var amount = document.SafePreciseDecimal("enteredinsulin", 0.05m) ?? 0;
+            var split = document.SafeInt("splitExt") ?? 0;
+            amount = (amount * split / 100m).ToPreciseDecimal(0.05m);
+
+            return new ExtendedBolus {
+                Time = eventTime.Value,
+                Duration = duration,
+                Amount = amount
             };
         }
 
