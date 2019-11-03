@@ -51,7 +51,11 @@ namespace NightFlux.UI
                         sync.ImportCarbs()
                     );
             }
-            viewModel.Update();
+
+            var csvsync = new CsvImport(App.Configuration);
+            await csvsync.ImportFile(@"C:\Users\kurtl\Desktop\boluses.tsv").ConfigureAwait(true);
+
+            await viewModel.Update();
             SyncButton.IsEnabled = true;
         }
     }

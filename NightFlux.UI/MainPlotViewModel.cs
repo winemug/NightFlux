@@ -36,18 +36,18 @@ namespace NightFlux.UI
                 Position = AxisPosition.Bottom,
                 Minimum = DateTimeAxis.ToDouble(dtEnd.AddHours(-6).LocalDateTime),
                 Maximum = DateTimeAxis.ToDouble(dtEnd.LocalDateTime) });
+
             model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
                 Minimum = 20,
                 Maximum = 400});
 
-            var lineSeries = new LineSeries();
-            await foreach(var gv in nv.GlucoseValues(dtStart, dtEnd))
+            var bgSeries = new LineSeries { Title = "BG" };
+            await foreach(var tv in nv.GlucoseValues(dtStart, dtEnd))
             {
-                lineSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (double)gv.Value));
+                bgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
             }
 
-            lineSeries.Title = "Nice";
-            model.Series.Add(lineSeries);
+            model.Series.Add(bgSeries);
 
             return model;
         }
