@@ -29,7 +29,7 @@ namespace NightFlux
                 yield return new TimeValue
                 {
                     Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
-                    Value = dr.GetDecimal(1)
+                    Value = dr.GetDouble(1)
                 };
             }
         }
@@ -40,7 +40,7 @@ namespace NightFlux
             yield return new TimeValue
             {
                 Time = DateTimeOffset.UnixEpoch,
-                Value = 0m
+                Value = 0
             };
         }
 
@@ -54,7 +54,7 @@ namespace NightFlux
                 yield return new TimeValue
                 {
                     Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
-                    Value = dr.GetDecimal(1)
+                    Value = dr.GetDouble(1)
                 };
             }
         }
@@ -63,7 +63,7 @@ namespace NightFlux
         {
             using var nsql = await NightSql.GetInstance(Configuration);
 
-            var zeroBasalSchedule = (UtcOffset: 0, Rates: new decimal[48]);
+            var zeroBasalSchedule = (UtcOffset: 0, Rates: new double[48]);
 
             var basalTimeline = new IntervalCollection<BasalProfile>();
             var tempBasalTimeline = new IntervalCollection<TempBasal>();
@@ -99,8 +99,8 @@ namespace NightFlux
             }
 
             var pointOfInterest = start;
-            decimal? lastRate = null;
-            var activeBasalRates = new decimal[48];
+            double? lastRate = null;
+            var activeBasalRates = new double[48];
             var activeUtcOffset = 0;
 
             while(pointOfInterest < end)
@@ -162,6 +162,41 @@ namespace NightFlux
             }
         }
 
+        public async IAsyncEnumerable<TimeValue> BasalTicks(DateTimeOffset start, DateTimeOffset end)
+        {
+            double? lastBasalRate = null;
+            await foreach (var basalRate in BasalRates(start, end))
+            {
+                if (lastBasalRate.HasValue)
+                {
+                    foreach (var basalTick in BasalTicks(lastBasalRate.Value, start, end))
+                    {
+                        yield return basalTick;
+                    }
+                }
+                lastBasalRate = basalRate.Value;
+            }
+
+            if (lastBasalRate.HasValue)
+            {
+                foreach (var basalTick in BasalTicks(lastBasalRate.Value, start, end))
+                {
+                    yield return basalTick;
+                }
+            }
+
+        }
+
+        private IEnumerable<TimeValue> BasalTicks(double rate, DateTimeOffset start, DateTimeOffset end)
+        {
+            var tickCount = rate / 0.05;
+            var tickInterval = TimeSpan.FromMilliseconds(TimeSpan.FromHours(1).TotalMilliseconds / tickCount);
+            while (start < end)
+            {
+                yield return new TimeValue {Time = start, Value = 0.05};
+            }
+        }
+
         private DateTimeOffset GetNextHalfHourMark(DateTimeOffset dt)
         {
             dt = dt.AddMinutes(30);
@@ -205,7 +240,7 @@ namespace NightFlux
                 Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
                 UtcOffsetInMinutes = dr.GetInt32(1),
                 Duration = dr.GetInt32(2),
-                BasalRates = JsonConvert.DeserializeObject<decimal[]>(dr.GetString(3))
+                BasalRates = JsonConvert.DeserializeObject<double[]>(dr.GetString(3))
             };
         }
 
@@ -215,7 +250,7 @@ namespace NightFlux
             {
                 Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
                 Duration = dr.GetInt32(1),
-                AbsoluteRate = dr.IsDBNull(2) ? null : (decimal?)dr.GetDecimal(2),
+                AbsoluteRate = dr.IsDBNull(2) ? null : (double?)dr.GetDouble(2),
                 Percentage = dr.IsDBNull(3) ? null: (int?)dr.GetInt32(3)
             };
         }
@@ -226,7 +261,7 @@ namespace NightFlux
             yield return new TimeValue
             {
                 Time = DateTimeOffset.UnixEpoch,
-                Value = 0m
+                Value = 0
             };
         }
 

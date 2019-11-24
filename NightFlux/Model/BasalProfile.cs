@@ -7,7 +7,7 @@ namespace NightFlux.Model
     public struct BasalProfile : IEntity
     {
         public DateTimeOffset Time;
-        public decimal[] BasalRates;
+        public double[] BasalRates;
         public int UtcOffsetInMinutes;
         public int Duration;
     }

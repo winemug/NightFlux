@@ -7,6 +7,6 @@ namespace NightFlux.Model
     public struct BgValue : IEntity
     {
         public DateTimeOffset Time;
-        public decimal Value;
+        public double Value;
     }
 }

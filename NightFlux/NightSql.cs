@@ -406,16 +406,16 @@ namespace NightFlux
             return p;
         }
 
-        public SQLiteParameter GetParameter(string name, decimal value)
+        public SQLiteParameter GetParameter(string name, double value)
         {
-            var p = new SQLiteParameter(name, DbType.Decimal);
+            var p = new SQLiteParameter(name, DbType.Double);
             p.Value = value;
             return p;
         }
 
-        public SQLiteParameter GetParameter(string name, decimal? value)
+        public SQLiteParameter GetParameter(string name, double? value)
         {
-            var p = new SQLiteParameter(name, DbType.Decimal);
+            var p = new SQLiteParameter(name, DbType.Double);
             p.Value = value;
             return p;
         }
@@ -429,7 +429,7 @@ namespace NightFlux
 
         public SQLiteParameter GetParameter(string name, Guid value)
         {
-            var p = new SQLiteParameter(name, DbType.Decimal);
+            var p = new SQLiteParameter(name, DbType.Double);
             p.Value = value.ToByteArray();
             return p;
         }

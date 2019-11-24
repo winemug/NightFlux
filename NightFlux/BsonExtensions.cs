@@ -37,9 +37,9 @@ namespace NightFlux
             return ret;
         }
 
-        public static decimal? SafePreciseDecimal(this BsonDocument bsonDocument, string element, decimal precision)
+        public static double? SafePrecisedouble(this BsonDocument bsonDocument, string element, double precision)
         {
-            decimal? ret = null;
+            double? ret = null;
             BsonValue bsonValue;
             if (bsonDocument.TryGetValue(element, out bsonValue))
             {
@@ -48,7 +48,7 @@ namespace NightFlux
                     try
                     {
                         if (bsonValue.IsDouble)
-                            ret = bsonValue.AsDouble.ToPreciseDecimal(precision);
+                            ret = bsonValue.AsDouble.ToPreciseDouble(precision);
                         else if (bsonValue.IsInt32)
                             ret = bsonValue.AsInt32;
                         else if (bsonValue.IsInt64)

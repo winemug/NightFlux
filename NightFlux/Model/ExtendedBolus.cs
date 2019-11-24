@@ -7,7 +7,7 @@ namespace NightFlux.Model
     public struct ExtendedBolus : IEntity
     {
         public DateTimeOffset Time;
-        public decimal? Amount;
+        public double? Amount;
         public int Duration;
     }
 }

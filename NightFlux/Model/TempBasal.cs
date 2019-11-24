@@ -8,7 +8,7 @@ namespace NightFlux.Model
     {
         public DateTimeOffset Time;
         public int Duration;
-        public decimal? AbsoluteRate;
+        public double? AbsoluteRate;
         public int? Percentage;
     }
 }

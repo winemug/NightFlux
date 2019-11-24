@@ -66,16 +66,16 @@ namespace NightFlux
                     switch(entryType)
                     {
                         case "b":
-                            await nsql.Import(new Bolus { Time = entryDate, Amount = decimal.Parse(cols[2], CultureInfo.InvariantCulture) });
+                            await nsql.Import(new Bolus { Time = entryDate, Amount = double.Parse(cols[2], CultureInfo.InvariantCulture) });
                             break;
                         case "eb":
-                            await nsql.Import(new ExtendedBolus { Time = entryDate, Amount = decimal.Parse(cols[2], CultureInfo.InvariantCulture), Duration = int.Parse(cols[3]) });
+                            await nsql.Import(new ExtendedBolus { Time = entryDate, Amount = double.Parse(cols[2], CultureInfo.InvariantCulture), Duration = int.Parse(cols[3]) });
                             break;
                         case "ebc":
                             await nsql.Import(new ExtendedBolus { Time = entryDate, Amount = null, Duration = 0 });
                             break;
                         case "tb":
-                            await nsql.Import(new TempBasal { Time = entryDate, AbsoluteRate = decimal.Parse(cols[2], CultureInfo.InvariantCulture), Duration = int.Parse(cols[3]) });
+                            await nsql.Import(new TempBasal { Time = entryDate, AbsoluteRate = double.Parse(cols[2], CultureInfo.InvariantCulture), Duration = int.Parse(cols[3]) });
                             break;
                         case "tbc":
                             await nsql.Import(new TempBasal { Time = entryDate, AbsoluteRate = null, Duration = 0 });

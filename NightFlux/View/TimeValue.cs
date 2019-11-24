@@ -7,6 +7,6 @@ namespace NightFlux.View
     public struct TimeValue
     {
         public DateTimeOffset Time;
-        public decimal? Value;
+        public double? Value;
     }
 }

@@ -48,7 +48,7 @@ namespace NightFlux
                 foreach (BsonDocument document in cursor.Current)
                 {
                     DateTimeOffset? dt = document.SafeDateTimeOffset("date");
-                    decimal? gv = document.SafePreciseDecimal("sgv", 1);
+                    double? gv = document.SafePrecisedouble("sgv", 1);
 
                     if (dt.HasValue && gv.HasValue)
                     {
@@ -243,7 +243,7 @@ namespace NightFlux
             if (!eventTime.HasValue)
                 return null;
 
-            var amount = document.SafePreciseDecimal("carbs", 0.1m);
+            var amount = document.SafePrecisedouble("carbs", 0.1);
 
             if (amount <= 0)
                 return null;
@@ -264,7 +264,7 @@ namespace NightFlux
             if (!eventTime.HasValue)
                 return null;
 
-            var amount = document.SafePreciseDecimal("insulin", 0.05m);
+            var amount = document.SafePrecisedouble("insulin", 0.05);
 
             if (amount <= 0)
                 return null;
@@ -285,9 +285,9 @@ namespace NightFlux
                 return null;
 
             var duration = document.SafeInt("duration") ?? 0;
-            var amount = document.SafePreciseDecimal("enteredinsulin", 0.05m) ?? 0;
+            var amount = document.SafePrecisedouble("enteredinsulin", 0.05) ?? 0;
             var split = document.SafeInt("splitExt") ?? 0;
-            amount = (amount * split / 100m).ToPreciseDecimal(0.05m);
+            amount = (amount * split / 100).ToPreciseDouble(0.05);
 
             return new ExtendedBolus {
                 Time = eventTime.Value,
@@ -306,7 +306,7 @@ namespace NightFlux
                 return null;
 
             var duration = document.SafeInt("duration") ?? 0;
-            var absoluteRate = document.SafePreciseDecimal("absolute", 0.05m);
+            var absoluteRate = document.SafePrecisedouble("absolute", 0.05);
             var percentage = document.SafeInt("percent");
 
             return new TempBasal {
@@ -367,15 +367,15 @@ namespace NightFlux
             return ret;
         }
 
-        private async Task<decimal[]> GetBasalRates(JObject joProfile, int percentage)
+        private async Task<double[]> GetBasalRates(JObject joProfile, int percentage)
         {
-            var rates = new decimal[48];
+            var rates = new double[48];
             var nsRates = await GetSingleRates(joProfile, percentage);
 
             if (!nsRates[0].HasValue)
                 return null;
 
-            var lastRate = 0m;
+            var lastRate = 0.0;
             for(int i=0; i<48; i++)
             {
                 if (nsRates[i].HasValue)
@@ -387,9 +387,9 @@ namespace NightFlux
             return rates;
         }
 
-        private async Task<decimal?[]> GetSingleRates(JObject joProfile, int percentage)
+        private async Task<double?[]> GetSingleRates(JObject joProfile, int percentage)
         {
-            var nsRates = new decimal?[48];
+            var nsRates = new double?[48];
 
             if (!joProfile.ContainsKey("basal"))
                 return nsRates;
@@ -402,7 +402,7 @@ namespace NightFlux
                 if (!nsRate.HasValue)
                     continue;
 
-                var rate = (nsRate.Value * percentage / 100).ToPreciseDecimal(0.05m);
+                var rate = (nsRate.Value * percentage / 100).ToPreciseDouble(0.05);
 
                 var tas = joRate.SafeInt("timeAsSeconds");
                 if (tas.HasValue)
@@ -433,7 +433,7 @@ namespace NightFlux
                 if (!basalIndex.HasValue)
                     continue;
 
-                if (basalIndex >= 0 && basalIndex < 48 && rate > 0 && rate < 30m)
+                if (basalIndex >= 0 && basalIndex < 48 && rate > 0 && rate < 30)
                     nsRates[basalIndex.Value] = rate;
             }
 

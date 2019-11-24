@@ -7,7 +7,7 @@ namespace NightFlux.Model
     public struct Carb : IEntity
     {
         public DateTimeOffset Time;
-        public decimal Amount;
+        public double Amount;
         public string ImportId;
     }
 }

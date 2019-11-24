@@ -7,6 +7,6 @@ namespace NightFlux.Model
     public struct Bolus : IEntity
     {
         public DateTimeOffset Time;
-        public decimal Amount;
+        public double Amount;
     }
 }
