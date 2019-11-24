@@ -316,6 +316,16 @@ namespace NightFlux
             }
         }
 
+        public async Task<NameValueCollection> SingleResultQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
+        {
+            await foreach (var dr in ExecuteQuery(sql, parameters, conn))
+            {
+                return dr.GetValues();
+            }
+
+            return null;
+        }
+
         public async Task<int> ExecuteNonQuery(string sql, SQLiteParameter[] parameters = null, SQLiteConnection conn = null)
         {
             bool closeConnection = false;

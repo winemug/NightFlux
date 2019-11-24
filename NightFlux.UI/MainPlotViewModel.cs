@@ -4,6 +4,7 @@ using OxyPlot.Series;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -41,7 +42,8 @@ namespace NightFlux.UI
                 Minimum = 20,
                 Maximum = 400});
 
-            var bgSeries = new LineSeries { Title = "BG" };
+            var bgSeries = new LineSeries { Title = "Blood Glucose Concentration" };
+
             await foreach(var tv in nv.GlucoseValues(dtStart, dtEnd))
             {
                 bgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
