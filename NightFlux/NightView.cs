@@ -167,7 +167,7 @@ namespace NightFlux
             double? lastBasalRate = null;
             await foreach (var basalRate in BasalRates(start, end))
             {
-                if (lastBasalRate.HasValue)
+                if (lastBasalRate > 0)
                 {
                     foreach (var basalTick in BasalTicks(lastBasalRate.Value, start, end))
                     {
@@ -177,7 +177,7 @@ namespace NightFlux
                 lastBasalRate = basalRate.Value;
             }
 
-            if (lastBasalRate.HasValue)
+            if (lastBasalRate > 0)
             {
                 foreach (var basalTick in BasalTicks(lastBasalRate.Value, start, end))
                 {
@@ -189,11 +189,18 @@ namespace NightFlux
 
         private IEnumerable<TimeValue> BasalTicks(double rate, DateTimeOffset start, DateTimeOffset end)
         {
-            var tickCount = rate / 0.05;
+            var tickCount = (int) Math.Round(rate / 0.05);
             var tickInterval = TimeSpan.FromMilliseconds(TimeSpan.FromHours(1).TotalMilliseconds / tickCount);
-            while (start < end)
+            var firstTick = new TimeSpan(0, 59, 59) - (tickInterval * (tickCount -1));
+            var tickTick  =
+                new DateTimeOffset(start.Year, start.Month, start.Day, start.Hour, 0, 0, start.Offset)
+                    .Add(firstTick);
+
+            while (tickTick < end)
             {
-                yield return new TimeValue {Time = start, Value = 0.05};
+                if (tickTick >= start)
+                    yield return new TimeValue {Time = start, Value = 0.05};
+                tickTick.Add(tickInterval);
             }
         }
 
