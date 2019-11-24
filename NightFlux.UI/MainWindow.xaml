@@ -12,10 +12,12 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid Grid.Row="0">
             <Button Name="SyncButton" Width="100" Height="30" Click="Sync_Button_Click">Sync Data</Button>
         </Grid>
-        <o:PlotView Grid.Row="1" Model="{Binding MainPlotModel}"/>
+        <o:PlotView Grid.Row="1" Model="{Binding BgcModel}"/>
+        <o:PlotView Grid.Row="2" Model="{Binding InsulinModel}"/>
     </Grid>
 </Window>

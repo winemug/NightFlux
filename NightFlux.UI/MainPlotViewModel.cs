@@ -14,29 +14,36 @@ namespace NightFlux.UI
     {
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public PlotModel MainPlotModel {get; set;}
+        public PlotModel BgcModel {get; set;}
+        public PlotModel InsulinModel {get; set;}
+
+        public DateTimeOffset Start { get; set; }
+        public DateTimeOffset End { get; set; }
 
         public MainPlotViewModel()
         {
+            Start = DateTimeOffset.UtcNow.AddDays(-3);
+            End = DateTimeOffset.UtcNow;
         }
 
         public async Task Update()
         {
-            MainPlotModel = await GetModel();
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MainPlotModel)));
+            var nv = new NightView(App.Configuration);
+
+            BgcModel = await GetBgcModel(nv);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BgcModel)));
+            
+            InsulinModel = await GetInsulinModel(nv);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InsulinModel)));
         }
 
-        private async Task<PlotModel> GetModel()
+        private async Task<PlotModel> GetBgcModel(NightView nv)
         {
-            var nv = new NightView(App.Configuration);
-            var dtStart = DateTimeOffset.Now.AddDays(-30);
-            var dtEnd = DateTimeOffset.Now;
-
-            var model = new PlotModel { Title = "Something" };
+            var model = new PlotModel();
             model.Axes.Add(new DateTimeAxis {
                 Position = AxisPosition.Bottom,
-                Minimum = DateTimeAxis.ToDouble(dtEnd.AddHours(-6).LocalDateTime),
-                Maximum = DateTimeAxis.ToDouble(dtEnd.LocalDateTime) });
+                Minimum = DateTimeAxis.ToDouble(Start.LocalDateTime),
+                Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
 
             model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
                 Minimum = 20,
@@ -44,13 +51,35 @@ namespace NightFlux.UI
 
             var bgSeries = new LineSeries { Title = "Blood Glucose Concentration" };
 
-            await foreach(var tv in nv.GlucoseValues(dtStart, dtEnd))
+            await foreach(var tv in nv.GlucoseValues(Start, End))
             {
                 bgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
             }
 
             model.Series.Add(bgSeries);
+            return model;
+        }
 
+        private async Task<PlotModel> GetInsulinModel(NightView nv)
+        {
+            var model = new PlotModel();
+            model.Axes.Add(new DateTimeAxis {
+                Position = AxisPosition.Bottom,
+                Minimum = DateTimeAxis.ToDouble(Start.LocalDateTime),
+                Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
+
+            model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
+                Minimum = 0,
+                Maximum = 10});
+
+            var basalSeries = new AreaSeries {Title = "Basal rate", InterpolationAlgorithm = new PreviousValueInterpolationAlgorithm() };
+
+            await foreach(var tv in nv.BasalRates(Start, End))
+            {
+                basalSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
+            }
+
+            model.Series.Add(basalSeries);
             return model;
         }
     }

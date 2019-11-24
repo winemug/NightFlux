@@ -34,7 +34,7 @@ namespace NightFlux.UI
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            viewModel.Update();
+            await viewModel.Update();
         }
 
         private async void Sync_Button_Click(object sender, RoutedEventArgs e)
