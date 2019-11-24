@@ -187,6 +187,28 @@ namespace NightFlux
 
         }
 
+        public async IAsyncEnumerable<TimeValue> BolusTicks(DateTimeOffset start, DateTimeOffset end)
+        {
+            await foreach (var bolusEntry in BolusEntries(start, end))
+            {
+                foreach (var bolusTick in BolusTicks(bolusEntry.Value.Value, bolusEntry.Time))
+                    yield return bolusTick;
+            }
+        }
+
+        private IEnumerable<TimeValue> BolusTicks(double amount, DateTimeOffset start)
+        {
+            var tickCount = (int) Math.Round(amount / 0.05);
+            var tickInterval = TimeSpan.FromSeconds(2);
+
+            while (tickCount > 0)
+            {
+                yield return new TimeValue {Time = start, Value = 0.05};
+                tickCount--;
+                start.Add(tickInterval);
+            }
+        }
+
         private IEnumerable<TimeValue> BasalTicks(double rate, DateTimeOffset start, DateTimeOffset end)
         {
             var tickCount = (int) Math.Round(rate / 0.05);
