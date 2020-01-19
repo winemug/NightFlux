@@ -24,14 +24,14 @@ namespace NightFlux
             }
             return ret;
         }
-        public static double? SafePrecisedouble(this JObject jObject, string element, double precision)
+        public static double? SafeRound(this JObject jObject, string element, decimal precision)
         {
             double? ret = null;
             double? dval = jObject.SafeDouble(element);
 
             if (dval.HasValue)
             {
-                ret = dval.Value.ToPreciseDouble(precision);
+                ret = dval.Value.Round(precision);
             }
             return ret;
         }

@@ -16,7 +16,8 @@ namespace NightFlux
         private string SqliteConnectionString;
 
         private ConcurrentQueue<IEntity> BatchEntities;
-        private ConcurrentBag<Task> BatchTasks;
+        private TaskCompletionSource<bool> StopQueueSource;
+        private Task QueueProcessorTask;
 
         private NightSql(Configuration configuration)
         {
@@ -37,7 +38,34 @@ namespace NightFlux
         public async Task StartBatchImport()
         {
             BatchEntities = new ConcurrentQueue<IEntity>();
-            BatchTasks = new ConcurrentBag<Task>();
+            StopQueueSource = new TaskCompletionSource<bool>();
+            QueueProcessorTask = Task.Run(async () => await QueueProcessor());
+        }
+
+        private async Task QueueProcessor()
+        {
+            while (true)
+            {
+                var waitResult = await Task.WhenAny(StopQueueSource.Task, Task.Delay(TimeSpan.FromMilliseconds(500)));
+                if (waitResult == StopQueueSource.Task)
+                    break;
+                if (BatchEntities.Count > 1023)
+                {
+                    await EmptyQueue();
+                }
+            }
+            await EmptyQueue();
+        }
+
+        private async Task EmptyQueue()
+        {
+            await using var conn = await GetConnection();
+            await using var tran = await conn.BeginTransactionAsync();
+            while (BatchEntities.TryDequeue(out var iv))
+            {
+                await InsertEntity(iv, conn);
+            }
+            await tran.CommitAsync();
         }
 
         public async Task Import(IEntity record)
@@ -49,105 +77,97 @@ namespace NightFlux
             else
             {
                 BatchEntities.Enqueue(record);
-
-                if (BatchEntities.Count > 1024)
-                {
-                    var list = new List<IEntity>();
-                    IEntity iv;
-                    while(BatchEntities.TryDequeue(out iv))
-                        list.Add(iv);
-
-                    BatchTasks.Add(InsertBatchEntities(list));
-                }
             }
         }
 
         public async Task FinalizeBatchImport()
         {
-            var list = new List<IEntity>();
-            IEntity iv;
-            while(BatchEntities.TryDequeue(out iv))
-                list.Add(iv);
-            BatchTasks.Add(InsertBatchEntities(list));
-            await Task.WhenAll(BatchTasks.ToArray());
+            StopQueueSource.SetResult(true);
+            await QueueProcessorTask;
         }
 
-        public async Task RemoveDuplicateCarbs()
-        {
-            using var conn = await GetConnection();
-            var duplicateIds = new List<long>();
-            await foreach (var dr in ExecuteQuery("SELECT import_id, COUNT(*) FROM carb GROUP BY import_id HAVING COUNT(*) > 1", null, conn))
-            {
-                var importId = dr.GetString(0);
-                var duplicateCount = dr.GetInt64(1) - 1;
-                await foreach (var rowInfo in ExecuteQuery("SELECT rowid FROM carb WHERE import_id = @i ORDER BY time DESC LIMIT @k",
-                    new [] { GetParameter("i", importId), GetParameter("k", duplicateCount) }, conn))
-                {
-                    duplicateIds.Add(rowInfo.GetInt64(0));
-                }
-            }
+        //public async Task RemoveDuplicateCarbs()
+        //{
+        //    using var conn = await GetConnection();
+        //    var duplicateIds = new List<long>();
+        //    await foreach (var dr in ExecuteQuery("SELECT import_id, COUNT(*) FROM carb GROUP BY import_id HAVING COUNT(*) > 1", null, conn))
+        //    {
+        //        var importId = dr.GetString(0);
+        //        var duplicateCount = dr.GetInt64(1) - 1;
+        //        await foreach (var rowInfo in ExecuteQuery("SELECT rowid FROM carb WHERE import_id = @i ORDER BY time DESC LIMIT @k",
+        //            new [] { GetParameter("i", importId), GetParameter("k", duplicateCount) }, conn))
+        //        {
+        //            duplicateIds.Add(rowInfo.GetInt64(0));
+        //        }
+        //    }
 
-            using var tran = await conn.BeginTransactionAsync();
-            foreach(var duplicateId in duplicateIds)
-            {
-                await ExecuteNonQuery("DELETE FROM carb WHERE rowid = @d",
-                    new [] { GetParameter("d", duplicateId) }, conn);
-            }
-            await tran.CommitAsync();
-        }
-
-        private async Task InsertBatchEntities(List<IEntity> entities)
-        {
-            using var conn = await GetConnection();
-            using var tran = await conn.BeginTransactionAsync();
-            foreach(var iv in entities)
-            {
-                await InsertEntity(iv, conn);
-            }
-            await tran.CommitAsync();
-        }
+        //    using var tran = await conn.BeginTransactionAsync();
+        //    foreach(var duplicateId in duplicateIds)
+        //    {
+        //        await ExecuteNonQuery("DELETE FROM carb WHERE rowid = @d",
+        //            new [] { GetParameter("d", duplicateId) }, conn);
+        //    }
+        //    await tran.CommitAsync();
+        //}
 
         private async Task InsertEntity(IEntity iv, SQLiteConnection conn = null)
         {
-            if (iv is BgValue)
+            try
             {
-                await ImportBG((BgValue)iv, conn);
+                if (iv is BgValue)
+                {
+                    await ImportBG((BgValue)iv, conn);
+                }
+                else if (iv is BasalProfile)
+                {
+                    await ImportProfile((BasalProfile) iv, conn);
+                }
+                else if (iv is TempBasal)
+                {
+                    await ImportTempBasal((TempBasal) iv, conn);
+                }
+                else if (iv is Bolus)
+                {
+                    await ImportBolus((Bolus) iv, conn);
+                }
+                else if (iv is Carb)
+                {
+                    await ImportCarb((Carb) iv, conn);
+                }
+                else if (iv is ExtendedBolus)
+                {
+                    await ImportExtendedBolus((ExtendedBolus) iv, conn);
+                }
             }
-            else if (iv is BasalProfile)
+            catch (Exception e)
             {
-                await ImportProfile((BasalProfile) iv, conn);
-            }
-            else if (iv is TempBasal)
-            {
-                await ImportTempBasal((TempBasal) iv, conn);
-            }
-            else if (iv is Bolus)
-            {
-                await ImportBolus((Bolus) iv, conn);
-            }
-            else if (iv is Carb)
-            {
-                await ImportCarb((Carb) iv, conn);
-            }
-            else if (iv is ExtendedBolus)
-            {
-                await ImportExtendedBolus((ExtendedBolus) iv, conn);
+                Console.WriteLine($"Error importing entity {iv}\n{e}");
             }
         }
 
         private async Task ImportBG(BgValue bgValue, SQLiteConnection conn)
         {
-            await ExecuteNonQuery("INSERT INTO bg(time,value) VALUES(@t, @v)",
-                new []
+            await ExecuteNonQuery("INSERT OR REPLACE INTO bg(time,value) VALUES(@t, @v)",
+                new[]
                 {
                     GetParameter("t", bgValue.Time),
                     GetParameter("v", bgValue.Value)
                 }, conn);
+            //var r = (long) await ExecuteScalar("SELECT COUNT(*) FROM bg WHERE time > @t1 AND time < @t2", new []
+            //{
+            //    GetParameter("t1", bgValue.Time.AddSeconds(-1)),
+            //    GetParameter("t2", bgValue.Time.AddSeconds(1)),
+            //});
+
+            //if (r == 0)
+            //{
+
+            //}
         }
 
         private async Task ImportProfile(BasalProfile basalProfile, SQLiteConnection conn)
         {
-            await ExecuteNonQuery("INSERT INTO basal(time,utc_offset,duration,rates) VALUES(@t, @u, @d, @r)",
+            await ExecuteNonQuery("INSERT OR REPLACE INTO basal(time,utc_offset,duration,rates) VALUES(@t, @u, @d, @r)",
                 new []
                 {
                     GetParameter("t", basalProfile.Time),
@@ -155,11 +175,18 @@ namespace NightFlux
                     GetParameter("d", basalProfile.Duration),
                     GetParameter("r", JsonConvert.SerializeObject(basalProfile.BasalRates))
                 }, conn);
+            //var r = (long) await ExecuteScalar("SELECT COUNT(*) FROM bg WHERE time > @t1 AND time < @t2", new []
+            //{
+            //    GetParameter("t1", basalProfile.Time.AddSeconds(-1)),
+            //    GetParameter("t2", basalProfile.Time.AddSeconds(1)),
+            //});
+
+            //if (r == 0)
         }
 
         private async Task ImportTempBasal(TempBasal tempBasal, SQLiteConnection conn)
         {
-            await ExecuteNonQuery("INSERT INTO tempbasal(time,duration,absolute,percentage) VALUES(@t, @d, @u, @p)",
+            await ExecuteNonQuery("INSERT OR REPLACE INTO tempbasal(time,duration,absolute,percentage) VALUES(@t, @d, @u, @p)",
                 new []
                 {
                     GetParameter("t", tempBasal.Time),
@@ -167,38 +194,84 @@ namespace NightFlux
                     GetParameter("u", tempBasal.AbsoluteRate),
                     GetParameter("p", tempBasal.Percentage)
                 }, conn);
+            //var r = (long) await ExecuteScalar("SELECT COUNT(*) FROM bg WHERE time > @t1 AND time < @t2", new []
+            //{
+            //    GetParameter("t1", tempBasal.Time.AddSeconds(-1)),
+            //    GetParameter("t2", tempBasal.Time.AddSeconds(1)),
+            //});
+
+            //if (r == 0)
         }
 
         private async Task ImportBolus(Bolus bolus, SQLiteConnection conn)
         {
-            await ExecuteNonQuery("INSERT INTO bolus(time,amount) VALUES(@t, @a)",
+            await ExecuteNonQuery("INSERT OR REPLACE INTO bolus(time,amount) VALUES(@t, @a)",
                 new []
                 {
                     GetParameter("t", bolus.Time),
                     GetParameter("a", bolus.Amount)
                 }, conn);
+            //var r = (long) await ExecuteScalar("SELECT COUNT(*) FROM bg WHERE time > @t1 AND time < @t2", new []
+            //{
+            //    GetParameter("t1", bolus.Time.AddSeconds(-1)),
+            //    GetParameter("t2", bolus.Time.AddSeconds(1)),
+            //});
+
+            //if (r == 0)
+            //    await ExecuteNonQuery("INSERT OR REPLACE INTO bolus(time,amount) VALUES(@t, @a)",
+            //    new []
+            //    {
+            //        GetParameter("t", bolus.Time),
+            //        GetParameter("a", bolus.Amount)
+            //    }, conn);
         }
 
         private async Task ImportExtendedBolus(ExtendedBolus extendedBolus, SQLiteConnection conn)
         {
-            await ExecuteNonQuery("INSERT INTO extended_bolus(time,amount,duration) VALUES(@t, @a, @d)",
+            await ExecuteNonQuery("INSERT OR REPLACE INTO extended_bolus(time,amount,duration) VALUES(@t, @a, @d)",
                 new []
                 {
                     GetParameter("t", extendedBolus.Time),
                     GetParameter("a", extendedBolus.Amount),
                     GetParameter("d", extendedBolus.Duration)
                 }, conn);
+            //var r = (long) await ExecuteScalar("SELECT COUNT(*) FROM bg WHERE time > @t1 AND time < @t2", new []
+            //{
+            //    GetParameter("t1", extendedBolus.Time.AddSeconds(-1)),
+            //    GetParameter("t2", extendedBolus.Time.AddSeconds(1)),
+            //});
+
+            //if (r == 0)
+            //    await ExecuteNonQuery("INSERT OR REPLACE INTO extended_bolus(time,amount,duration) VALUES(@t, @a, @d)",
+            //    new []
+            //    {
+            //        GetParameter("t", extendedBolus.Time),
+            //        GetParameter("a", extendedBolus.Amount),
+            //        GetParameter("d", extendedBolus.Duration)
+            //    }, conn);
         }
 
         private async Task ImportCarb(Carb carb, SQLiteConnection conn)
         {
-            await ExecuteNonQuery("INSERT INTO carb(time,amount,import_id) VALUES(@t, @a, @i)",
+            await ExecuteNonQuery("INSERT OR REPLACE INTO carb(time,amount) VALUES(@t, @a)",
                 new []
                 {
                     GetParameter("t", carb.Time),
                     GetParameter("a", carb.Amount),
-                    GetParameter("i", carb.ImportId),
                 }, conn);
+            //var r = (long) await ExecuteScalar("SELECT COUNT(*) FROM bg WHERE time > @t1 AND time < @t2", new []
+            //{
+            //    GetParameter("t1", carb.Time.AddSeconds(-60)),
+            //    GetParameter("t2", carb.Time.AddSeconds(60)),
+            //});
+
+            //if (r == 0)
+            //    await ExecuteNonQuery("INSERT OR REPLACE INTO carb(time,amount) VALUES(@t, @a)",
+            //    new []
+            //    {
+            //        GetParameter("t", carb.Time),
+            //        GetParameter("a", carb.Amount),
+            //    }, conn);
         }
 
         public async Task<long> GetLastBgDate()
@@ -210,70 +283,31 @@ namespace NightFlux
             return 0;
         }
 
-        public async Task<long> GetLastProfileChangeDate()
-        {
-            await foreach (var dr in ExecuteQuery("SELECT time FROM basal ORDER BY time DESC LIMIT 1"))
-            {
-                return dr.GetInt64(0);
-            }
-            return 0;
-        }
-
-        public async Task<long> GetLastTempBasalDate()
-        {
-            await foreach (var dr in ExecuteQuery("SELECT time FROM tempbasal ORDER BY time DESC LIMIT 1"))
-            {
-                return dr.GetInt64(0);
-            }
-            return 0;
-        }
-
-        public async Task<long> GetLastBolusDate()
-        {
-            await foreach (var dr in ExecuteQuery("SELECT time FROM bolus ORDER BY time DESC LIMIT 1"))
-            {
-                return dr.GetInt64(0);
-            }
-            return 0;
-        }
-
-        public async Task<long> GetLastExtendedBolusDate()
-        {
-            await foreach (var dr in ExecuteQuery("SELECT time FROM extended_bolus ORDER BY time DESC LIMIT 1"))
-            {
-                return dr.GetInt64(0);
-            }
-            return 0;
-        }
-
-        public async Task<long> GetLastCarbDate()
-        {
-            await foreach (var dr in ExecuteQuery("SELECT time FROM carb ORDER BY time DESC LIMIT 1"))
-            {
-                return dr.GetInt64(0);
-            }
-            return 0;
-        }
-
         private async Task Initialize()
         {
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bg" +
-                "(time INTEGER, value REAL);");
+                "(time INTEGER PRIMARY KEY, value REAL);");
+            //await ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_time1 ON bg(time);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS basal" +
-                "(time INTEGER, utc_offset INTEGER, duration INTEGER, rates TEXT);");
+                "(time INTEGER PRIMARY KEY, utc_offset INTEGER, duration INTEGER, rates TEXT);");
+            //await ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_time2 ON basal(time);");
             
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS tempbasal" +
-                "(time INTEGER, duration INTEGER, absolute REAL, percentage INTEGER);");
+                "(time INTEGER PRIMARY KEY, duration INTEGER, absolute REAL, percentage INTEGER);");
+            //await ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_time3 ON tempbasal(time);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS bolus" +
-                "(time INTEGER, amount REAL);");
+                "(time INTEGER PRIMARY KEY, amount REAL);");
+            //await ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_time4 ON bolus(time);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS extended_bolus" +
-                "(time INTEGER, amount REAL, duration INTEGER);");
+                "(time INTEGER PRIMARY KEY, amount REAL, duration INTEGER);");
+            //await ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_time5 ON extended_bolus(time);");
 
             await ExecuteNonQuery("CREATE TABLE IF NOT EXISTS carb" +
-                "(time INTEGER, amount REAL, import_id TEXT);");
+                "(time INTEGER PRIMARY KEY, amount REAL);");
+            //await ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_time6 ON carb(time);");
         }
 
         public async Task<SQLiteConnection> GetConnection()

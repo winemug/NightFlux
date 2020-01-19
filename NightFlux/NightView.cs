@@ -141,7 +141,8 @@ namespace NightFlux
 
                 var scheduledRate = activeBasalRates[scheduleIndex];
 
-                if (lastRate != scheduledRate)
+                if (!lastRate.HasValue
+                    || !lastRate.Value.IsSameAs(scheduledRate, 0.05m))
                 {
                     yield return new TimeValue
                     {
@@ -159,6 +160,15 @@ namespace NightFlux
 
                 if (activeTempBasalInterval?.End < pointOfInterest)
                     pointOfInterest = activeTempBasalInterval.End;
+            }
+
+            if (lastRate.HasValue)
+            {
+                yield return new TimeValue
+                {
+                    Time = end,
+                    Value = lastRate
+                };
             }
         }
 

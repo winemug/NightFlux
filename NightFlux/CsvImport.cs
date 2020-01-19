@@ -81,7 +81,7 @@ namespace NightFlux
                             await nsql.Import(new TempBasal { Time = entryDate, AbsoluteRate = null, Duration = 0 });
                             break;
                         case "c":
-                            await nsql.Import(new Carb { Time = entryDate, Amount = int.Parse(cols[2]), ImportId = entryDate.ToUnixTimeMilliseconds().ToString() });
+                            await nsql.Import(new Carb { Time = entryDate, Amount = int.Parse(cols[2])});
                             break;
                     }
                 }

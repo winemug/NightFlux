@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
+using NightFlux.View;
 
 namespace NightFlux.UI
 {
@@ -72,9 +73,9 @@ namespace NightFlux.UI
                 Minimum = 0,
                 Maximum = 10});
 
-            var basalSeries = new AreaSeries {Title = "Basal rate", InterpolationAlgorithm = new PreviousValueInterpolationAlgorithm() };
+            var basalSeries = new AreaSeries {Title = "Basal rate"};
 
-            await foreach(var tv in nv.BasalRates(Start, End))
+            await foreach(var tv in nv.BasalTicks(Start, End))
             {
                 basalSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
             }

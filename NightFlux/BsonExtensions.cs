@@ -8,9 +8,9 @@ namespace NightFlux
 {
     public static class BsonExtensions
     {
-        public static DateTime? SafeDateTimeOffset(this BsonDocument bsonDocument, string element)
+        public static DateTimeOffset? SafeDateTimeOffset(this BsonDocument bsonDocument, string element)
         {
-            DateTime? ret = null;
+            DateTimeOffset? ret = null;
             BsonValue bsonValue;
             if (bsonDocument.TryGetValue(element, out bsonValue))
             {
@@ -32,12 +32,21 @@ namespace NightFlux
                         }
                         catch { }
                     }
+                    else if (bsonValue.IsString)
+                    {
+                        try
+                        {
+                            ret = DateTimeOffset.FromUnixTimeMilliseconds(bsonValue.AsBsonDateTime
+                                .MillisecondsSinceEpoch);
+                        }
+                        catch { }
+                    }
                 }
             }
             return ret;
         }
 
-        public static double? SafePrecisedouble(this BsonDocument bsonDocument, string element, double precision)
+        public static double? SafeRound(this BsonDocument bsonDocument, string element, decimal precision)
         {
             double? ret = null;
             BsonValue bsonValue;
@@ -48,7 +57,7 @@ namespace NightFlux
                     try
                     {
                         if (bsonValue.IsDouble)
-                            ret = bsonValue.AsDouble.ToPreciseDouble(precision);
+                            ret = bsonValue.AsDouble.Round(precision);
                         else if (bsonValue.IsInt32)
                             ret = bsonValue.AsInt32;
                         else if (bsonValue.IsInt64)

@@ -8,6 +8,5 @@ namespace NightFlux.Model
     {
         public DateTimeOffset Time;
         public double Amount;
-        public string ImportId;
     }
 }

@@ -3,6 +3,7 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using File = System.IO.File;
 
 namespace NightFlux.UI
 {
@@ -40,21 +42,20 @@ namespace NightFlux.UI
         private async void Sync_Button_Click(object sender, RoutedEventArgs e)
         {
             SyncButton.IsEnabled = false;
+
+            using var nsql = await NightSql.GetInstance(App.Configuration);
+            await nsql.StartBatchImport();
             using(var sync = new NightSync(App.Configuration))
             {
                 await Task.WhenAll(
-                        sync.ImportBg(),
-                        sync.ImportBasalProfiles(),
-                        sync.ImportTempBasals(),
-                        sync.ImportBoluses(),
-                        sync.ImportExtendedBoluses(),
-                        sync.ImportCarbs()
-                    );
+                    sync.ImportBg(nsql),
+                    sync.ImportBasalProfiles(nsql),
+                    sync.ImportTempBasals(nsql),
+                    sync.ImportBoluses(nsql),
+                    sync.ImportCarbs(nsql)
+                );
             }
-
-            var csvsync = new CsvImport(App.Configuration);
-            await csvsync.ImportFile(@"C:\Users\kurtl\Desktop\boluses.tsv").ConfigureAwait(true);
-
+            await nsql.FinalizeBatchImport();
             await viewModel.Update();
             SyncButton.IsEnabled = true;
         }

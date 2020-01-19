@@ -14,17 +14,19 @@ namespace NightFlux
             try
             {
                 var configuration = LoadConfiguration(args);
+                using var nsql = await NightSql.GetInstance(configuration);
+                await nsql.StartBatchImport();
                 using(var sync = new NightSync(configuration))
                 {
                     await Task.WhenAll(
-                            sync.ImportBg(),
-                            sync.ImportBasalProfiles(),
-                            sync.ImportTempBasals(),
-                            sync.ImportBoluses(),
-                            sync.ImportExtendedBoluses(),
-                            sync.ImportCarbs()
+                            sync.ImportBg(nsql),
+                            sync.ImportBasalProfiles(nsql),
+                            sync.ImportTempBasals(nsql),
+                            sync.ImportBoluses(nsql),
+                            sync.ImportCarbs(nsql)
                         );
                 }
+                await nsql.FinalizeBatchImport();
                 configuration.Save();
             }
             catch(Exception e)
@@ -49,46 +51,6 @@ namespace NightFlux
                 throw;
             }
         }
-
-        //private static async Task ImportBgv(NsExport exporter, CsvImport importer, long timestamp)
-        //{
-        //    try
-        //    {
-        //        await foreach(var bgv in exporter.BgEntries(timestamp))
-        //        {
-        //            await importer.ImportBg(bgv);
-        //        }
-        //    }
-        //    catch(Exception e)
-        //    {
-        //        Console.WriteLine($"Error importing bg values:\n{e}");
-        //        throw;
-        //    }
-        //}
-
-        //private static async Task ImportProfilesAndBasals(NsExport exporter, CsvImport importer)
-        //{
-        //    try
-        //    {
-        //        var basalProfiles = new List<BasalProfile>();
-        //        await foreach(var profile in exporter.ProfileEntries())
-        //        {
-        //            await importer.ImportProfile(profile);
-        //            basalProfiles.Add(profile);
-        //        }
-
-        //        await foreach(var basalRate in exporter.BasalRates(basalProfiles))
-        //        {
-        //            await importer.ImportBasalRate(basalRate);
-        //        }
-
-        //    }
-        //    catch(Exception e)
-        //    {
-        //        Console.WriteLine($"Error importing basal profiles:\n{e}");
-        //        throw;
-        //    }
-        //}
 
         //private static async Task AnalyticsTest(CsvReader reader)
         //{

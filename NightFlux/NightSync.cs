@@ -3,8 +3,16 @@ using MongoDB.Driver;
 using System.Data.SQLite;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
+using MongoDB.Bson.Serialization;
+using MongoDB.Driver.Linq;
+using MongoDB.Driver.Linq.Expressions;
+using MongoDB.Driver.Linq.Processors;
+using MongoDB.Driver.Linq.Translators;
+using Newtonsoft.Json.Converters;
 using TimeZoneConverter;
 using Newtonsoft.Json.Linq;
 using NightFlux.Model;
@@ -17,12 +25,17 @@ namespace NightFlux
         private IMongoDatabase MongoDatabase;
         private Configuration Configuration;
         private NightSql NightSql;
+        private long LastTimeStamp;
+        private DateTimeOffset LastTimeOffset;
 
         public NightSync(Configuration configuration)
         {
             MongoClient = new MongoClient(configuration.NsMongoDbUrl);
             MongoDatabase = MongoClient.GetDatabase(configuration.NsDbName);
             Configuration = configuration;
+            BsonClassMap.RegisterClassMap<NsTreatment>();
+            LastTimeStamp = Configuration.LastSync;
+            LastTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(LastTimeStamp);
         }
 
         public void Dispose()
@@ -30,10 +43,8 @@ namespace NightFlux
             NightSql?.Dispose();
         }
 
-        public async Task ImportBg()
+        public async Task ImportBg(NightSql nsql)
         {
-            var nsql = await NightSql.GetInstance(Configuration);
-            await nsql.StartBatchImport();
             var lastTimestamp = await nsql.GetLastBgDate();
             var entries = MongoDatabase.GetCollection<BsonDocument>("entries");
             var filter = new FilterDefinitionBuilder<BsonDocument>()
@@ -48,7 +59,7 @@ namespace NightFlux
                 foreach (BsonDocument document in cursor.Current)
                 {
                     DateTimeOffset? dt = document.SafeDateTimeOffset("date");
-                    double? gv = document.SafePrecisedouble("sgv", 1);
+                    double? gv = document.SafeRound("sgv", 1);
 
                     if (dt.HasValue && gv.HasValue)
                     {
@@ -60,283 +71,161 @@ namespace NightFlux
                     }
                 }
             }
-
-            await nsql.FinalizeBatchImport();
         }
 
-        public async Task ImportBasalProfiles()
+        public async Task ImportBasalProfiles(NightSql nsql)
         {
-            var nsql = await NightSql.GetInstance(Configuration);
-            await nsql.StartBatchImport();
-            var lastTimestamp = await nsql.GetLastProfileChangeDate();
-            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
-            var filter = new FilterDefinitionBuilder<BsonDocument>()
-                    .And(
-                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("eventType", "Profile Switch"),
-                        new FilterDefinitionBuilder<BsonDocument>().Exists("profileJson"),
-                        new FilterDefinitionBuilder<BsonDocument>()
-                            .Or(
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
-
-            using var cursor = await entries.Find(filter).ToCursorAsync();
-            while (await cursor.MoveNextAsync())
+            try
             {
-                foreach (BsonDocument document in cursor.Current)
+                using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
+                    .FindAsync(x => x.eventType == "Profile Switch" && x.profileJson != null
+                        && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
+                            || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
+                            || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
+
+
+                while (await cursor.MoveNextAsync())
                 {
-                    var basalProfile = await ParseProfileSwitch(document);
-                    if (basalProfile.HasValue)
-                        await nsql.Import(basalProfile.Value);
+                    foreach (var treatment in cursor.Current)
+                    {
+                        var basalProfile = await ParseProfileSwitch(treatment);
+                        if (basalProfile.HasValue)
+                            await nsql.Import(basalProfile.Value);
+                    }
                 }
             }
-            await nsql.FinalizeBatchImport();
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
         }
 
-        public async Task ImportTempBasals()
+        public async Task ImportTempBasals(NightSql nsql)
         {
-            var nsql = await NightSql.GetInstance(Configuration);
-            await nsql.StartBatchImport();
-            var lastTimestamp = await nsql.GetLastTempBasalDate();
+            using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
+                .FindAsync(x => x.eventType == "Temp Basal"
+                                && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
+                                    || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
+                                    || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
 
-            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
-            var filter = new FilterDefinitionBuilder<BsonDocument>()
-                    .And(
-                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("eventType", "Temp Basal"),
-                        new FilterDefinitionBuilder<BsonDocument>()
-                            .Or(
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
-
-            using var cursor = await entries.Find(filter).ToCursorAsync();
             while (await cursor.MoveNextAsync())
             {
-                foreach (BsonDocument document in cursor.Current)
+                foreach (var treatment in cursor.Current)
                 {
-                    var tempBasal = await ParseTempBasal(document);
+                    var tempBasal = await ParseTempBasal(treatment);
                     if (tempBasal.HasValue)
                         await nsql.Import(tempBasal.Value);
                 }
             }
-            await nsql.FinalizeBatchImport();
         }
 
-        public async Task ImportBoluses()
+        public async Task ImportCarbs(NightSql nsql)
         {
-            var nsql = await NightSql.GetInstance(Configuration);
-            await nsql.StartBatchImport();
-            var lastTimestamp = await nsql.GetLastBolusDate();
+            using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
+                .FindAsync(x => x.carbs.HasValue
+                                                   && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
+                                                       || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
+                                                       || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
 
-            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
-            var filter = new FilterDefinitionBuilder<BsonDocument>()
-                    .And(
-                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("insulin", 0),
-                        new FilterDefinitionBuilder<BsonDocument>()
-                            .Or(
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
-
-            using var cursor = await entries.Find(filter).ToCursorAsync();
             while (await cursor.MoveNextAsync())
             {
-                foreach (BsonDocument document in cursor.Current)
+                foreach (var treatment in cursor.Current)
                 {
-                    var bolus = await ParseBolus(document);
-                    if (bolus.HasValue)
-                        await nsql.Import(bolus.Value);
-                }
-            }
-            await nsql.FinalizeBatchImport();
-        }
-
-        public async Task ImportCarbs()
-        {
-            var nsql = await NightSql.GetInstance(Configuration);
-            var lastTimestamp = await nsql.GetLastCarbDate();
-            await nsql.StartBatchImport();
-            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
-            var filter = new FilterDefinitionBuilder<BsonDocument>()
-                    .And(
-                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("carbs", 0),
-                        new FilterDefinitionBuilder<BsonDocument>()
-                            .Or(
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
-
-            using var cursor = await entries.Find(filter).ToCursorAsync();
-            while (await cursor.MoveNextAsync())
-            {
-                foreach (BsonDocument document in cursor.Current)
-                {
-                    var carb = await ParseCarbs(document);
+                    var carb = await ParseCarbs(treatment);
                     if (carb.HasValue)
                         await nsql.Import(carb.Value);
                 }
             }
-            await nsql.FinalizeBatchImport();
-            await nsql.RemoveDuplicateCarbs();
         }
 
-        public async Task ImportExtendedBoluses()
+        public async Task ImportBoluses(NightSql nsql)
         {
-            var nsql = await NightSql.GetInstance(Configuration);
-            await nsql.StartBatchImport();
-            var lastTimestamp = await nsql.GetLastExtendedBolusDate();
+            using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
+                .FindAsync(x => (x.insulin.HasValue || x.enteredinsulin.HasValue)
+                                                   && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
+                                                       || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
+                                                       || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
 
-            var entries = MongoDatabase.GetCollection<BsonDocument>("treatments");
-            var filter = new FilterDefinitionBuilder<BsonDocument>()
-                    .And(
-                        new FilterDefinitionBuilder<BsonDocument>().Eq<string>("eventType", "Combo Bolus"),
-                        new FilterDefinitionBuilder<BsonDocument>()
-                            .Or(
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("NSCLIENT_ID"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("NSCLIENT_ID", lastTimestamp)),
-                                new FilterDefinitionBuilder<BsonDocument>()
-                                    .And(
-                                        new FilterDefinitionBuilder<BsonDocument>().Exists("timestamp"),
-                                        new FilterDefinitionBuilder<BsonDocument>().Gt<double>("timestamp", lastTimestamp))));
-
-            using var cursor = await entries.Find(filter).ToCursorAsync();
             while (await cursor.MoveNextAsync())
             {
-                foreach (BsonDocument document in cursor.Current)
+                foreach (var treatment in cursor.Current)
                 {
-                    var extendedBolus = await ParseExtendedBolus(document);
+                    var (bolus, extendedBolus) = await ParseExtendedBolus(treatment);
+                    if (bolus.HasValue)
+                        await nsql.Import(bolus.Value);
                     if (extendedBolus.HasValue)
                         await nsql.Import(extendedBolus.Value);
                 }
             }
-            await nsql.FinalizeBatchImport();
         }
 
-        private async Task<Carb?> ParseCarbs(BsonDocument document)
+        private async Task<Carb?> ParseCarbs(NsTreatment treatment)
         {
-            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
-            if (!eventTime!.HasValue)
-                eventTime = document.SafeDateTimeOffset("timestamp");
-
-            if (!eventTime.HasValue)
-                return null;
-
-            var amount = document.SafePrecisedouble("carbs", 0.1);
+            var amount = treatment.carbs?.Round(0.1m) ?? 0;
 
             if (amount <= 0)
                 return null;
 
             return new Carb {
-                Time = eventTime.Value,
-                Amount = amount.Value,
-                ImportId = document.SafeString("created_at")
-            };
-        }
-
-        private async Task<Bolus?> ParseBolus(BsonDocument document)
-        {
-            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
-            if (!eventTime!.HasValue)
-                eventTime = document.SafeDateTimeOffset("timestamp");
-
-            if (!eventTime.HasValue)
-                return null;
-
-            var amount = document.SafePrecisedouble("insulin", 0.05);
-
-            if (amount <= 0)
-                return null;
-
-            return new Bolus {
-                Time = eventTime.Value,
-                Amount = amount.Value
-            };
-        }
-
-        private async Task<ExtendedBolus?> ParseExtendedBolus(BsonDocument document)
-        {
-            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
-            if (!eventTime!.HasValue)
-                eventTime = document.SafeDateTimeOffset("timestamp");
-
-            if (!eventTime.HasValue)
-                return null;
-
-            var duration = document.SafeInt("duration") ?? 0;
-            var amount = document.SafePrecisedouble("enteredinsulin", 0.05) ?? 0;
-            var split = document.SafeInt("splitExt") ?? 0;
-            amount = (amount * split / 100).ToPreciseDouble(0.05);
-
-            return new ExtendedBolus {
-                Time = eventTime.Value,
-                Duration = duration,
+                Time = treatment.EventDate.Value,
                 Amount = amount
             };
         }
-
-        private async Task<TempBasal?> ParseTempBasal(BsonDocument document)
+        private async Task<(Bolus?, ExtendedBolus?)> ParseExtendedBolus(NsTreatment treatment)
         {
-            DateTimeOffset? eventTime = document.SafeDateTimeOffset("NSCLIENT_ID");
-            if (!eventTime!.HasValue)
-                eventTime = document.SafeDateTimeOffset("timestamp");
+            ExtendedBolus? extendedBolus = null;
+            Bolus? bolus = null;
 
-            if (!eventTime.HasValue)
-                return null;
+            var duration = treatment.duration ?? 0;
+            var amount = treatment.enteredinsulin?.Round(0.05m) ?? 0;
+            var splitExt = treatment.splitExt ?? 0;
+            var splitNow = treatment.splitNow ?? 0;
 
-            var duration = document.SafeInt("duration") ?? 0;
-            var absoluteRate = document.SafePrecisedouble("absolute", 0.05);
-            var percentage = document.SafeInt("percent");
+            var amountExt = (amount * splitExt / 100.0).Round(0.05m);
+            if (amountExt > 0)
+                extendedBolus = new ExtendedBolus {
+                    Time = treatment.EventDate.Value,
+                    Duration = duration,
+                    Amount = amount
+                };
+
+            var amountNow = (amount * splitNow / 100.0).Round(0.05m);
+            if (amountNow > 0)
+                bolus = new Bolus {
+                    Time = treatment.EventDate.Value,
+                    Amount = amount
+                };
+
+            return (bolus, extendedBolus);
+        }
+
+        private async Task<TempBasal?> ParseTempBasal(NsTreatment treatment)
+        {
+            var duration = treatment.duration ?? 0;
+            double? absoluteRate = treatment.absolute?.Round(0.05m);
+            var percentage = treatment.percent ?? 0;
 
             return new TempBasal {
-                Time = eventTime.Value,
+                Time = treatment.EventDate.Value,
                 Duration = duration,
                 AbsoluteRate = absoluteRate,
                 Percentage = percentage
             };
         }
 
-        private async Task<BasalProfile?> ParseProfileSwitch(BsonDocument document)
+        private async Task<BasalProfile?> ParseProfileSwitch(NsTreatment treatment)
         {
             BasalProfile? ret = null;
 
-            DateTimeOffset? profileSwitchTime = document.SafeDateTimeOffset("NSCLIENT_ID");
-            if (!profileSwitchTime.HasValue)
-                profileSwitchTime = document.SafeDateTimeOffset("timestamp");
-
-            if (!profileSwitchTime.HasValue)
-                return null;
-
-            var joProfile = document.SafeJsonObject("profileJson");
-            if (joProfile == null)
-                return null;
+            var profileSwitchTime = treatment.EventDate.Value;
+            var joProfile = JObject.Parse(treatment.profileJson);
 
             try
             {
-                int percentage = document.SafeInt("percentage") ?? 100;
-                int timeShift = document.SafeInt("timeshift") ?? 0;
-                int duration = document.SafeInt("duration") ?? 0;
+                int percentage = treatment.percentage ?? 100;
+                int timeShift = treatment.timeshift ?? 0;
+                int duration = treatment.duration ?? 0;
 
                 int utcOffset;
                 if (joProfile.ContainsKey("timezone"))
@@ -346,17 +235,17 @@ namespace NightFlux
                     // including dst at the time of profile switch
                     // as the pod does not switch timezones or dst,
                     // there has to be an explicit profile switch entry for each change in local time
-                    utcOffset = (int) tzi.GetUtcOffset(profileSwitchTime.Value).TotalMinutes;
+                    utcOffset = (int) tzi.GetUtcOffset(profileSwitchTime).TotalMinutes;
                 }
                 else
-                    utcOffset = document.SafeInt("utcOffset") ?? 0;
+                    utcOffset = treatment.utcOffset ?? 0;
 
                 var rates = await GetBasalRates(joProfile, percentage);
                 if (rates != null)
                 {
                     ret = new BasalProfile()
                     {
-                        Time = profileSwitchTime.Value,
+                        Time = profileSwitchTime,
                         BasalRates = rates,
                         UtcOffsetInMinutes = utcOffset + timeShift,
                         Duration = duration
@@ -402,7 +291,7 @@ namespace NightFlux
                 if (!nsRate.HasValue)
                     continue;
 
-                var rate = (nsRate.Value * percentage / 100).ToPreciseDouble(0.05);
+                var rate = (nsRate.Value * percentage / 100.0).Round(0.05m);
 
                 var tas = joRate.SafeInt("timeAsSeconds");
                 if (tas.HasValue)
