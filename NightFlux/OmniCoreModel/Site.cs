@@ -4,7 +4,7 @@ using System.Text;
 
 namespace NightFlux.OmniCoreModel
 {
-    public class PodSite
+    public class Site
     {
         public int Id { get; set; }
         public HormoneType Hormone { get; set; }
