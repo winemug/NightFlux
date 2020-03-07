@@ -56,6 +56,11 @@ namespace NightFlux.UI
                 );
             }
             await nsql.FinalizeBatchImport();
+
+            var nv = new NightView(App.Configuration);
+            var fs = new FluxSync(App.Configuration);
+            await fs.Cleanup();
+            await fs.Export(nv);
             await viewModel.Update();
             SyncButton.IsEnabled = true;
         }

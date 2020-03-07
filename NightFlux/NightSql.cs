@@ -72,7 +72,7 @@ namespace NightFlux
         {
             if (BatchEntities == null)
             {
-                InsertEntity(record);
+                await InsertEntity(record);
             }
             else
             {

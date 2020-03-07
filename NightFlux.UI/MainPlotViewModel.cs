@@ -7,6 +7,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media.Converters;
+using MathNet.Numerics;
+using NightFlux.Experiments;
 using NightFlux.View;
 
 namespace NightFlux.UI
@@ -23,7 +26,7 @@ namespace NightFlux.UI
 
         public MainPlotViewModel()
         {
-            Start = DateTimeOffset.UtcNow.AddDays(-3);
+            Start = DateTimeOffset.UtcNow.AddDays(-14);
             End = DateTimeOffset.UtcNow;
         }
 
@@ -33,9 +36,7 @@ namespace NightFlux.UI
 
             BgcModel = await GetBgcModel(nv);
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BgcModel)));
-            
-            InsulinModel = await GetInsulinModel(nv);
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InsulinModel)));
+           
         }
 
         private async Task<PlotModel> GetBgcModel(NightView nv)
@@ -47,40 +48,39 @@ namespace NightFlux.UI
                 Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
 
             model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
-                Minimum = 20,
+                Minimum = 0,
                 Maximum = 400});
 
             var bgSeries = new LineSeries { Title = "Blood Glucose Concentration" };
 
-            await foreach(var tv in nv.GlucoseValues(Start, End))
+            await foreach(var tv in nv.BasalRates(Start, End))
             {
-                bgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
+                bgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Key.LocalDateTime), (double)tv.Value));
             }
 
             model.Series.Add(bgSeries);
-            return model;
-        }
 
-        private async Task<PlotModel> GetInsulinModel(NightView nv)
-        {
-            var model = new PlotModel();
-            model.Axes.Add(new DateTimeAxis {
-                Position = AxisPosition.Bottom,
-                Minimum = DateTimeAxis.ToDouble(Start.LocalDateTime),
-                Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
+            //model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
+            //    Minimum = 0,
+            //    Maximum = 10});
 
-            model.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
-                Minimum = 0,
-                Maximum = 10});
+            var insulinSeries = new AreaSeries {Title = "Insulin"};
 
-            var basalSeries = new AreaSeries {Title = "Basal rate"};
+            double lastVal = 0;
+            //var ios = Calculations.InsulinOnSite(Start, End);
+            //foreach(var tv in ios.Observations)
+            //{
+            //    insulinSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Key.LocalDateTime), lastVal));
+            //    insulinSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Key.LocalDateTime), tv.Value));
+            //    lastVal = tv.Value;
+            //}
+            //insulinSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(End.LocalDateTime), lastVal));
 
-            await foreach(var tv in nv.BasalTicks(Start, End))
-            {
-                basalSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(tv.Time.LocalDateTime), (double)tv.Value));
-            }
+            model.Series.Add(insulinSeries);
 
-            model.Series.Add(basalSeries);
+            
+
+
             return model;
         }
     }

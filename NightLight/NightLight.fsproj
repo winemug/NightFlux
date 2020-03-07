@@ -1,15 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <OutputType>Library</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Transforms.fs" />
+    <Compile Include="Calculations.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Deedle" Version="2.1.0" />
+    <PackageReference Include="Deedle" Version="2.1.1" />
+    <PackageReference Include="FSharp.Charting" Version="2.1.0" />
+    <PackageReference Include="FsLab" Version="1.1.6" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="3.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NightFlux\NightFlux.csproj" />
   </ItemGroup>
 
 </Project>

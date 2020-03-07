@@ -8,7 +8,7 @@ namespace NightFlux.View
 {
     public class IntervalCollection<T> where T : struct
     {
-        private List<Interval<T>> Intervals;
+        public List<Interval<T>> Intervals;
 
         public Interval<T> this[DateTimeOffset atTimeOffset]
         {

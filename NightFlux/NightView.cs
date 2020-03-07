@@ -7,6 +7,7 @@ using System.Data.SQLite;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using TimeValue = System.Collections.Generic.KeyValuePair<System.DateTimeOffset, double?>;
 
 namespace NightFlux
 {
@@ -19,58 +20,72 @@ namespace NightFlux
             Configuration = configuration;
         }
 
+        //public async IAsyncEnumerable<TimeValue> InsulinSimulation(DateTimeOffset start, DateTimeOffset end)
+        //{
+        //}
+
         public async IAsyncEnumerable<TimeValue> GlucoseValues(DateTimeOffset start, DateTimeOffset end)
         {
             using var nsql = await NightSql.GetInstance(Configuration);
-            var sql = "SELECT time, value FROM bg WHERE time >= @t1 AND time < @t2";
+            var sql = "SELECT time, value FROM bg WHERE time >= @t1 AND time < @t2 ORDER BY time";
             var parameters = new [] { nsql.GetParameter("t1", start), nsql.GetParameter("t2", end) };
             await foreach(var dr in nsql.ExecuteQuery(sql, parameters))
             {
-                yield return new TimeValue
-                {
-                    Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
-                    Value = dr.GetDouble(1)
-                };
+                yield return new TimeValue(DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
+                    dr.GetDouble(1));
             }
         }
 
         public async IAsyncEnumerable<TimeValue> CarbEntries(DateTimeOffset start, DateTimeOffset end)
         {
             using var nsql = await NightSql.GetInstance(Configuration);
-            yield return new TimeValue
-            {
-                Time = DateTimeOffset.UnixEpoch,
-                Value = 0
-            };
+            yield return new TimeValue(DateTimeOffset.UnixEpoch, 0);
         }
 
         public async IAsyncEnumerable<TimeValue> BolusEntries(DateTimeOffset start, DateTimeOffset end)
         {
             using var nsql = await NightSql.GetInstance(Configuration);
-            var sql = "SELECT time, amount FROM bolus WHERE time >= @t1 AND time < @t2";
+            var sql = "SELECT time, amount FROM bolus WHERE time >= @t1 AND time < @t2 ORDER BY time";
+            var parameters = new [] { nsql.GetParameter("t1", start), nsql.GetParameter("t2", end) };
+            await foreach (var dr in nsql.ExecuteQuery(sql, parameters))
+            {
+                yield return new TimeValue(DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)), dr.GetDouble(1));
+            }
+        }
+
+        public async IAsyncEnumerable<TimeValue> ExtendedBolusRates(DateTimeOffset start, DateTimeOffset end)
+        {
+            using var nsql = await NightSql.GetInstance(Configuration);
+
+            var ebTimeline = new IntervalCollection<ExtendedBolus>();
+            var sql = "SELECT time, amount, duration FROM extended_bolus WHERE time < @t1 ORDER BY time DESC LIMIT 1";
+            await foreach(var bpr in nsql.ExecuteQuery(sql, new [] { nsql.GetParameter("t1", start)}))
+            {
+                var previousEb = await ReadExtendedBolus(bpr);
+                AddExtendedBolusToTimeline(ebTimeline, previousEb);
+            }
+
+            sql = "SELECT time, amount, duration FROM extended_bolus WHERE time >= @t1 AND time < @t2 ORDER BY time";
             var parameters = new [] { nsql.GetParameter("t1", start), nsql.GetParameter("t2", end) };
             await foreach(var dr in nsql.ExecuteQuery(sql, parameters))
             {
-                yield return new TimeValue
-                {
-                    Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
-                    Value = dr.GetDouble(1)
-                };
+                var eb = await ReadExtendedBolus(dr);
+                AddExtendedBolusToTimeline(ebTimeline, eb);
             }
+
+            yield return new TimeValue(start, 0);
         }
 
         public async IAsyncEnumerable<TimeValue> BasalRates(DateTimeOffset start, DateTimeOffset end)
         {
             using var nsql = await NightSql.GetInstance(Configuration);
 
-            var zeroBasalSchedule = (UtcOffset: 0, Rates: new double[48]);
-
             var basalTimeline = new IntervalCollection<BasalProfile>();
             var tempBasalTimeline = new IntervalCollection<TempBasal>();
 
             var bpStart = start;
 
-            var sql = "SELECT * FROM basal WHERE duration = 0 AND time <= @t1 ORDER BY time DESC LIMIT 1";
+            var sql = "SELECT * FROM basal WHERE duration = 0 AND time < @t1 ORDER BY time DESC LIMIT 1";
             await foreach(var bpr in nsql.ExecuteQuery(sql, new [] { nsql.GetParameter("t1", start)}))
             {
                 var earlyProfile = await ReadProfile(bpr);
@@ -78,21 +93,21 @@ namespace NightFlux
                 bpStart = earlyProfile.Time;
             }
 
-            sql = "SELECT * FROM basal WHERE time > @t1 AND time < @t2 ORDER BY time";
+            sql = "SELECT * FROM basal WHERE time >= @t1 AND time < @t2 ORDER BY time";
             await foreach(var bpr in nsql.ExecuteQuery(sql, new [] { nsql.GetParameter("t1", bpStart), nsql.GetParameter("t2", end)}))
             {
                 var profile = await ReadProfile(bpr);
                 AddProfileToTimeline(basalTimeline, profile);
             }
 
-            sql = "SELECT * FROM tempbasal WHERE time <= @t1 ORDER BY time DESC LIMIT 1";
+            sql = "SELECT * FROM tempbasal WHERE time < @t1 ORDER BY time DESC LIMIT 1";
             await foreach(var tbr in nsql.ExecuteQuery(sql, new [] { nsql.GetParameter("t1", start)}))
             {
                 var earlyTempBasal = await ReadTempBasal(tbr);
                 AddTempbasalToTimeline(tempBasalTimeline, earlyTempBasal);
             }
 
-            sql = "SELECT * FROM tempbasal WHERE time > @t1 AND time < @t2 ORDER BY time";
+            sql = "SELECT * FROM tempbasal WHERE time >= @t1 AND time < @t2 ORDER BY time";
             await foreach(var tbr in nsql.ExecuteQuery(sql, new [] { nsql.GetParameter("t1", start), nsql.GetParameter("t2", end)}))
             {
                 AddTempbasalToTimeline(tempBasalTimeline, await ReadTempBasal(tbr));
@@ -144,11 +159,7 @@ namespace NightFlux
                 if (!lastRate.HasValue
                     || !lastRate.Value.IsSameAs(scheduledRate, 0.05m))
                 {
-                    yield return new TimeValue
-                    {
-                        Time = pointOfInterest,
-                        Value = scheduledRate
-                    };
+                    yield return new TimeValue(pointOfInterest, scheduledRate);
 
                     lastRate = scheduledRate;
                 }
@@ -161,35 +172,50 @@ namespace NightFlux
                 if (activeTempBasalInterval?.End < pointOfInterest)
                     pointOfInterest = activeTempBasalInterval.End;
             }
+        }
 
-            if (lastRate.HasValue)
+        public async IAsyncEnumerable<TimeValue> ExtendedBolusTicks(DateTimeOffset start, DateTimeOffset end)
+        {
+            var lastRate = new TimeValue();
+            await foreach (var rate in ExtendedBolusRates(start, end))
             {
-                yield return new TimeValue
+                if (lastRate.Value.HasValue)
                 {
-                    Time = end,
-                    Value = lastRate
-                };
+                    foreach (var extendedTick in TicksAtRate(lastRate.Value.Value, lastRate.Key, rate.Key))
+                    {
+                        yield return extendedTick;
+                    }
+                }
+                lastRate = rate;
+            }
+
+            if (lastRate.Value.HasValue)
+            {
+                foreach (var basalTick in TicksAtRate(lastRate.Value.Value, lastRate.Key, end))
+                {
+                    yield return basalTick;
+                }
             }
         }
 
         public async IAsyncEnumerable<TimeValue> BasalTicks(DateTimeOffset start, DateTimeOffset end)
         {
-            double? lastBasalRate = null;
+            var lastBasalRate = new TimeValue();
             await foreach (var basalRate in BasalRates(start, end))
             {
-                if (lastBasalRate > 0)
+                if (lastBasalRate.Value.HasValue)
                 {
-                    foreach (var basalTick in BasalTicks(lastBasalRate.Value, start, end))
+                    foreach (var basalTick in TicksAtRate(lastBasalRate.Value.Value, lastBasalRate.Key, basalRate.Key))
                     {
                         yield return basalTick;
                     }
                 }
-                lastBasalRate = basalRate.Value;
+                lastBasalRate = basalRate;
             }
 
-            if (lastBasalRate > 0)
+            if (lastBasalRate.Value.HasValue)
             {
-                foreach (var basalTick in BasalTicks(lastBasalRate.Value, start, end))
+                foreach (var basalTick in TicksAtRate(lastBasalRate.Value.Value, lastBasalRate.Key, end))
                 {
                     yield return basalTick;
                 }
@@ -201,7 +227,7 @@ namespace NightFlux
         {
             await foreach (var bolusEntry in BolusEntries(start, end))
             {
-                foreach (var bolusTick in BolusTicks(bolusEntry.Value.Value, bolusEntry.Time))
+                foreach (var bolusTick in BolusTicks(bolusEntry.Value.Value, bolusEntry.Key))
                     yield return bolusTick;
             }
         }
@@ -209,30 +235,32 @@ namespace NightFlux
         private IEnumerable<TimeValue> BolusTicks(double amount, DateTimeOffset start)
         {
             var tickCount = (int) Math.Round(amount / 0.05);
-            var tickInterval = TimeSpan.FromSeconds(2);
-
-            while (tickCount > 0)
+            if (tickCount > 0)
             {
-                yield return new TimeValue {Time = start, Value = 0.05};
-                tickCount--;
-                start.Add(tickInterval);
+                var tickInterval = TimeSpan.FromSeconds(2);
+                var tickAt = start;
+                while (tickCount > 0)
+                {
+                    yield return new TimeValue(tickAt, 0.05);
+                    tickCount--;
+                    tickAt = tickAt.Add(tickInterval);
+                }
             }
         }
 
-        private IEnumerable<TimeValue> BasalTicks(double rate, DateTimeOffset start, DateTimeOffset end)
+        private IEnumerable<TimeValue> TicksAtRate(double rate, DateTimeOffset start, DateTimeOffset end)
         {
             var tickCount = (int) Math.Round(rate / 0.05);
-            var tickInterval = TimeSpan.FromMilliseconds(TimeSpan.FromHours(1).TotalMilliseconds / tickCount);
-            var firstTick = new TimeSpan(0, 59, 59) - (tickInterval * (tickCount -1));
-            var tickTick  =
-                new DateTimeOffset(start.Year, start.Month, start.Day, start.Hour, 0, 0, start.Offset)
-                    .Add(firstTick);
-
-            while (tickTick < end)
+            if (tickCount > 0)
             {
-                if (tickTick >= start)
-                    yield return new TimeValue {Time = start, Value = 0.05};
-                tickTick.Add(tickInterval);
+                var tickInterval = TimeSpan.FromMilliseconds(TimeSpan.FromHours(1).TotalMilliseconds / tickCount);
+                var tickTick = start.Add(tickInterval);
+
+                while (tickTick < end)
+                {
+                    yield return new TimeValue(tickTick, 0.05);
+                    tickTick = tickTick.Add(tickInterval);
+                }
             }
         }
 
@@ -272,6 +300,19 @@ namespace NightFlux
                 timeline.Add(tempBasal.Time, tempBasal.Time.AddMinutes(tempBasal.Duration), tempBasal);
             }
         }
+
+        private void AddExtendedBolusToTimeline(IntervalCollection<ExtendedBolus> timeline, ExtendedBolus extendedBolus)
+        {
+            if (extendedBolus.Duration == 0)
+            {
+                timeline.Crop(extendedBolus.Time);
+            }
+            else
+            {
+                timeline.Add(extendedBolus.Time, extendedBolus.Time.AddMinutes(extendedBolus.Duration), extendedBolus);
+            }
+        }
+
         private async Task<BasalProfile> ReadProfile(SQLiteDataReader dr)
         {
             return new BasalProfile
@@ -294,15 +335,14 @@ namespace NightFlux
             };
         }
 
-        public async IAsyncEnumerable<TimeValue> ExtendedBasalRates(DateTimeOffset start, DateTimeOffset end)
+        private async Task<ExtendedBolus> ReadExtendedBolus(SQLiteDataReader dr)
         {
-            using var nsql = await NightSql.GetInstance(Configuration);
-            yield return new TimeValue
+            return new ExtendedBolus
             {
-                Time = DateTimeOffset.UnixEpoch,
-                Value = 0
+                Time = DateTimeOffset.FromUnixTimeMilliseconds(dr.GetInt64(0)),
+                Amount = dr.IsDBNull(1) ? null : (double?)dr.GetDouble(1),
+                Duration = dr.GetInt32(2)
             };
         }
-
     }
 }

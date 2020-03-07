@@ -10,16 +10,16 @@ namespace NightFlux.Model
     {
         public ObjectId Id { get; set; }
 
-        [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-        public DateTime? created_at { get; set; }
+        [BsonDateTimeOptions(Kind = DateTimeKind.Utc, Representation = BsonType.String)]
+        public DateTime created_at { get; set; }
 
-        [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-        public DateTime? timestamp { get; set; }
+        //[BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+        //public DateTime? timestamp { get; set; }
         public double? NSCLIENT_ID { get; set; }
 
         public string eventType { get; set; }
         public string profileJson { get; set; }
-        public int? duration { get; set; }
+        public double? duration { get; set; }
         public double? absolute { get; set; }
         public int? percent { get; set; }
         public int? percentage { get; set; }
@@ -38,13 +38,10 @@ namespace NightFlux.Model
         {
             get
             {
-                if (timestamp.HasValue)
-                    return new DateTimeOffset(timestamp.Value);
-                else if (NSCLIENT_ID.HasValue)
+                if (NSCLIENT_ID.HasValue)
                     return DateTimeOffset.FromUnixTimeMilliseconds((long) (NSCLIENT_ID.Value));
-                else if (created_at.HasValue)
-                    return new DateTimeOffset(created_at.Value);
-                return null;
+                else
+                    return new DateTimeOffset(created_at);
             }
         }
     }

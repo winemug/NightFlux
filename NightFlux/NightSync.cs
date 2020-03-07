@@ -33,7 +33,8 @@ namespace NightFlux
             MongoClient = new MongoClient(configuration.NsMongoDbUrl);
             MongoDatabase = MongoClient.GetDatabase(configuration.NsDbName);
             Configuration = configuration;
-            BsonClassMap.RegisterClassMap<NsTreatment>();
+            if (!BsonClassMap.IsClassMapRegistered(typeof(NsTreatment)))
+                BsonClassMap.RegisterClassMap<NsTreatment>();
             LastTimeStamp = Configuration.LastSync;
             LastTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(LastTimeStamp);
         }
@@ -79,9 +80,7 @@ namespace NightFlux
             {
                 using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
                     .FindAsync(x => x.eventType == "Profile Switch" && x.profileJson != null
-                        && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
-                            || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
-                            || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
+                                                                    && x.created_at > LastTimeOffset.DateTime);
 
 
                 while (await cursor.MoveNextAsync())
@@ -105,9 +104,7 @@ namespace NightFlux
         {
             using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
                 .FindAsync(x => x.eventType == "Temp Basal"
-                                && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
-                                    || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
-                                    || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
+                                && x.created_at > LastTimeOffset.DateTime);
 
             while (await cursor.MoveNextAsync())
             {
@@ -124,9 +121,8 @@ namespace NightFlux
         {
             using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
                 .FindAsync(x => x.carbs.HasValue
-                                                   && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
-                                                       || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
-                                                       || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
+                                && x.created_at > LastTimeOffset.DateTime);
+
 
             while (await cursor.MoveNextAsync())
             {
@@ -143,9 +139,7 @@ namespace NightFlux
         {
             using var cursor = await MongoDatabase.GetCollection<NsTreatment>("treatments")
                 .FindAsync(x => (x.insulin.HasValue || x.enteredinsulin.HasValue)
-                                                   && ((x.NSCLIENT_ID.HasValue && x.NSCLIENT_ID > LastTimeStamp)
-                                                       || (x.timestamp.HasValue && x.timestamp > LastTimeOffset)
-                                                       || (x.created_at.HasValue && x.created_at > LastTimeOffset)));
+                                && x.created_at > LastTimeOffset.DateTime);
 
             while (await cursor.MoveNextAsync())
             {
@@ -186,7 +180,7 @@ namespace NightFlux
             if (amountExt > 0)
                 extendedBolus = new ExtendedBolus {
                     Time = treatment.EventDate.Value,
-                    Duration = duration,
+                    Duration = (int)duration,
                     Amount = amount
                 };
 
@@ -208,7 +202,7 @@ namespace NightFlux
 
             return new TempBasal {
                 Time = treatment.EventDate.Value,
-                Duration = duration,
+                Duration = (int)duration,
                 AbsoluteRate = absoluteRate,
                 Percentage = percentage
             };
@@ -225,7 +219,7 @@ namespace NightFlux
             {
                 int percentage = treatment.percentage ?? 100;
                 int timeShift = treatment.timeshift ?? 0;
-                int duration = treatment.duration ?? 0;
+                int duration = (int) (treatment.duration ?? 0);
 
                 int utcOffset;
                 if (joProfile.ContainsKey("timezone"))
