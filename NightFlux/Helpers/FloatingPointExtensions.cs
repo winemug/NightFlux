@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.InteropServices.ComTypes;
-using System.Text;
-
-namespace NightFlux
+﻿namespace NightFlux.Helpers
 {
     public static class FloatingPointExtensions
     {

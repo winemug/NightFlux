@@ -9,11 +9,11 @@
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="OxyPlot.Wpf" Version="2.0.0" />
+    <PackageReference Include="PropertyChanged.Fody" Version="3.2.6" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NightFlux\NightFlux.csproj" />
-    <ProjectReference Include="..\NightLight\NightLight.fsproj" />
   </ItemGroup>
 
 </Project>

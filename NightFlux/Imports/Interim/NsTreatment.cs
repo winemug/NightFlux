@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace NightFlux.Model
+namespace NightFlux.Imports.Interim
 {
     public class NsTreatment
     {

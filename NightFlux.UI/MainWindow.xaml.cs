@@ -1,29 +1,12 @@
-﻿using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Series;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using File = System.IO.File;
+﻿using System.Windows;
+using NightFlux.Imports;
 
 namespace NightFlux.UI
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow
     {
         private MainPlotViewModel viewModel;
 
@@ -36,33 +19,8 @@ namespace NightFlux.UI
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            await NightSync.Run(App.Configuration);
             await viewModel.Update();
-        }
-
-        private async void Sync_Button_Click(object sender, RoutedEventArgs e)
-        {
-            SyncButton.IsEnabled = false;
-
-            using var nsql = await NightSql.GetInstance(App.Configuration);
-            await nsql.StartBatchImport();
-            using(var sync = new NightSync(App.Configuration))
-            {
-                await Task.WhenAll(
-                    sync.ImportBg(nsql),
-                    sync.ImportBasalProfiles(nsql),
-                    sync.ImportTempBasals(nsql),
-                    sync.ImportBoluses(nsql),
-                    sync.ImportCarbs(nsql)
-                );
-            }
-            await nsql.FinalizeBatchImport();
-
-            var nv = new NightView(App.Configuration);
-            var fs = new FluxSync(App.Configuration);
-            await fs.Cleanup();
-            await fs.Export(nv);
-            await viewModel.Update();
-            SyncButton.IsEnabled = true;
         }
     }
 }

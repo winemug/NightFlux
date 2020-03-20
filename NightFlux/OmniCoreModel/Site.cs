@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using NightFlux.Model;
 
 namespace NightFlux.OmniCoreModel
 {
@@ -9,5 +8,7 @@ namespace NightFlux.OmniCoreModel
         public int Id { get; set; }
         public HormoneType Hormone { get; set; }
         public decimal UnitsPerMilliliter { get; set; }
+        public DateTimeOffset InfusionStart { get; set; }
+        public DateTimeOffset InfusionStop { get; set; }
     }
 }

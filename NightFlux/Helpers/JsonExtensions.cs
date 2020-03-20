@@ -1,11 +1,7 @@
-﻿using MongoDB.Bson;
+﻿using System.Globalization;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Text;
 
-namespace NightFlux
+namespace NightFlux.Helpers
 {
     public static class JsonExtensions
     {
@@ -51,7 +47,6 @@ namespace NightFlux
             int? ret = null;
             if (jObject.ContainsKey(element))
             {
-                var valstr = jObject[element].ToString();
                 int ival;
                 if (int.TryParse(jObject[element].ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out ival))
                 {

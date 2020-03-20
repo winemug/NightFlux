@@ -3,19 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:NightFlux.UI"
         xmlns:o="http://oxyplot.org/wpf"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800"
         Loaded="Window_Loaded">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Grid Grid.Row="0">
+        <!--<Grid Grid.Row="0">
             <Button Name="SyncButton" Width="100" Height="30" Click="Sync_Button_Click">Sync Data</Button>
-        </Grid>
-        <o:PlotView Grid.Row="1" Model="{Binding BgcModel}"/>
+        </Grid>-->
+        <o:PlotView Grid.Row="0" Model="{Binding Model1}"/>
     </Grid>
 </Window>

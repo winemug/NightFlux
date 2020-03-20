@@ -1,8 +1,5 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace NightFlux
 {
@@ -14,13 +11,12 @@ namespace NightFlux
         private string ConfigurationPath { get; set;}
         public long LastSync { get; set; }
 
-        public string InfluxUrl { get; set; }
+        //public string InfluxUrl { get; set; }
+        //public string InfluxToken { get; set; }
+        //public string InfluxBucket { get; set; }
+        //public string InfluxOrgId { get; set; }
 
-        public string InfluxToken { get; set; }
-
-        public string InfluxBucket { get; set; }
-
-        public string InfluxOrgId { get; set; }
+        public string OmniCoreExportsFolder { get; set; }
 
         public static Configuration Load(string path = "./NightFlux.json")
         {

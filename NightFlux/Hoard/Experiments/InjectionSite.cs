@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace NightFlux.Experiments
+namespace NightFlux.Hoard.Experiments
 {
     public class InjectionSite
     {
@@ -24,7 +24,7 @@ namespace NightFlux.Experiments
         public double LymphicCapillaryAvailabilityModifier = 0.5;
         public double BloodCapillaryAvailabilityModifier = 0.85;
 
-        public TimeSpan LympathicCapillaryTravelTime = new TimeSpan(0, 20, 0);
+        public TimeSpan LymphicCapillaryTravelTime = new TimeSpan(0, 20, 0);
         public TimeSpan BloodCapillaryTravelTime = new TimeSpan(0, 3, 30);
 
         public Dictionary<DateTimeOffset, double> BloodCapillaryTransferDictionary = 

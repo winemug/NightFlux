@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace NightFlux.Model
+namespace NightFlux.Imports.Interim
 {
-    public struct ExtendedBolus : IEntity
+    public struct ExtendedBolus : INightFluxEntity
     {
         public DateTimeOffset Time;
         public double? Amount;

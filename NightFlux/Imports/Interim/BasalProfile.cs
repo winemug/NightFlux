@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace NightFlux.Model
+namespace NightFlux.Imports.Interim
 {
-    public struct BasalProfile : IEntity
+    public struct BasalProfile : INightFluxEntity
     {
         public DateTimeOffset Time;
         public double[] BasalRates;

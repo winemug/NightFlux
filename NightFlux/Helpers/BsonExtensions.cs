@@ -1,10 +1,8 @@
-﻿using MongoDB.Bson;
+﻿using System;
+using MongoDB.Bson;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace NightFlux
+namespace NightFlux.Helpers
 {
     public static class BsonExtensions
     {

@@ -1,10 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Data;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace NightFlux.UI
@@ -12,11 +6,11 @@ namespace NightFlux.UI
     /// <summary>
     /// Interaction logic for App.xaml
     /// </summary>
-    public partial class App : Application
+    public partial class App
     {
 
         public static Configuration Configuration;
-        private async void Application_Startup(object sender, StartupEventArgs e)
+        private void Application_Startup(object sender, StartupEventArgs e)
         {
             try
             {
@@ -24,6 +18,7 @@ namespace NightFlux.UI
                     Configuration = Configuration.Load(e.Args[0]);
                 else
                     Configuration = Configuration.Load();
+
             }
             catch(Exception ex)
             {

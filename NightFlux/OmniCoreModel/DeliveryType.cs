@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace NightFlux.OmniCoreModel
+﻿namespace NightFlux.OmniCoreModel
 {
     public enum DeliveryType
     {
