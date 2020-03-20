@@ -20,6 +20,10 @@ namespace NightFlux.UI
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             await NightSync.Run(App.Configuration);
+        }
+
+        private async void ButtonBase_OnClick(object sender, RoutedEventArgs e)
+        {
             await viewModel.Update();
         }
     }

@@ -98,7 +98,8 @@ namespace NightFlux.Imports
                                 Hormone = hormone == "insulin" ? HormoneType.InsulinAspart : HormoneType.Glucagon,
                                 UnitsPerMilliliter = solution,
                                 Name = site,
-                                Activated = entryDate
+                                Activated = entryDate,
+                                Deactivated = DateTimeOffset.MaxValue
                             };
 
                             ps.BasalRate(entryDate, (int) (currentRate / 0.05m));

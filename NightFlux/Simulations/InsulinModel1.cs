@@ -1,92 +1,151 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace NightFlux.Simulations
 {
-    public class InsulinModel1
+    public class InsulinModel1 : INotifyPropertyChanged
     {
-        private void Simulation1(SortedDictionary<DateTimeOffset, decimal> rates)
+        // based on Model 10 in "Insulin Kinetics in Type-1 Diabetes: Continuous andBolus Delivery of Rapid Acting Insulin"
+        // with modifications accounting for:
+        // 
+        // absorption via lymphatic capillaries 
+        // disassociation back into the monomeric compartment, instead of compartmental duplication
+        // variable local degradation according to structural differences
+     
+
+        public double FastCompartment { get; private set; }
+        public double SlowCompartment { get; private set; }
+        public double Circulation { get; private set; }
+
+        // TODO:
+        // ideas:
+        // Moving average of slow compartment size over time -> degradation of disassociation rate
+        // Local degradation slowdown but increased build-up over time: ethos e.g. fast boluses
+        // Blood capillary degradation - constant
+        // blocked capillary pathways -> introduce delays before new pathway creation and rate increase afterwards
+
+
+        public double Factorization { get; set; } = 50.00;
+        public double MonomericAndDimericFormsRatio { get; set; } = 0.25; // ml / mL 
+        public double HexamerDisassociationRate { get; set; } = 0.08; // mU / min
+        
+        public double BloodCapillaryAbsorptionRate { get; set; } = 0.03; // mU / min
+        public double LymphaticCapillaryAbsorptionRate { get; set; } = 0.006; // mU / min
+        public double EliminationRate { get; set; } = 0.0368; // mU / min
+
+        public double LocalDegradationSaturationMonomers { get; set; } = 0.9; // mU / min
+        public double LocalDegradationMidPointMonomers { get; set; } = 0.7; // mU
+
+        public double LocalDegradationSaturationHexamers { get; set; } = 0.9; // mU / min
+        public double LocalDegradationMidPointHexamers { get; set; } = 0.7; // mU
+
+        public TimeSpan MinSimulationSpan = TimeSpan.FromMinutes(1);
+
+        public InsulinModel1()
         {
-            TimeSpan maxOffset = TimeSpan.FromMinutes(5);
+        }
+        
+        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Run(IDictionary<DateTimeOffset, decimal> rates)
+        {
+            FastCompartment = 0;
+            SlowCompartment = 0;
+            Circulation = 0;
 
             rates[DateTimeOffset.Now.AddHours(12)] = 0m;
-
-            var ratesEnum = rates.GetEnumerator();
+            using var ratesEnum= rates.GetEnumerator();
             ratesEnum.MoveNext();
             var date = ratesEnum.Current.Key;
             var rate = ratesEnum.Current.Value;
-            if (!ratesEnum.MoveNext())
-                return;
-
-            while (true)
+            if (ratesEnum.MoveNext())
             {
-                if (date + maxOffset < ratesEnum.Current.Key)
+                while (true)
                 {
-                    DoSimulate1(date, date + maxOffset, (double)rate);
-                    date = date + maxOffset;
-                }
-                else
-                {
-                    if (date + maxOffset > ratesEnum.Current.Key)
+                    if (date + MinSimulationSpan < ratesEnum.Current.Key)
                     {
-                        DoSimulate1(date, ratesEnum.Current.Key, (double)rate);
+                        yield return ExecuteFrame(date,date + MinSimulationSpan, (double)rate);
+                        date = date + MinSimulationSpan;
                     }
-                    date = ratesEnum.Current.Key;
-                    rate = ratesEnum.Current.Value;
-                    if (!ratesEnum.MoveNext())
-                        return;
+                    else
+                    {
+                        if (date + MinSimulationSpan > ratesEnum.Current.Key)
+                        {
+                            yield return ExecuteFrame(date, ratesEnum.Current.Key, (double)rate);
+                        }
+                        date = ratesEnum.Current.Key;
+                        rate = ratesEnum.Current.Value;
+                        if (!ratesEnum.MoveNext())
+                            break;
+                    }
                 }
             }
         }
+        
 
-        private double q1a = 0, q1b = 0, q2 = 0, q3 = 0;
-
-        private double hexamerRatio = 0.7;
-
-        private double ka1 = 0.0112;
-        private double ka2 = 0.0210;
-        private double kElim = 0.0368;
-
-        private double vmaxld = 0.4201;
-        private double kmld = 5.5;
-
-        private void DoSimulate1(DateTimeOffset from, DateTimeOffset to, double hourlyRate)
+        private (DateTimeOffset From, DateTimeOffset To, double Value) ExecuteFrame
+            (DateTimeOffset from, DateTimeOffset to, double hourlyRate)
         {
             var duration = to - from;
 
-            var dq1a = hourlyRate * duration.TotalHours * hexamerRatio;
-            dq1a -= q1a * ka1 * duration.TotalMinutes;
-            var ld1a = vmaxld * q1a * duration.TotalMinutes / (kmld + q1a);
-            dq1a -= ld1a;
+            var deposit = hourlyRate * duration.TotalHours;
 
-            var dq1b = hourlyRate * duration.TotalHours * (1 - hexamerRatio);
-            dq1b -= q1b * ka2 * duration.TotalMinutes;
-            var ld1b = vmaxld * q1b * duration.TotalMinutes / (kmld + q1b);
-            dq1b -= ld1b;
+            SlowCompartment += deposit * (1 - MonomericAndDimericFormsRatio);
+            if (SlowCompartment > 0)
+            {
+                var lymphaticTransfer = SlowCompartment * LymphaticCapillaryAbsorptionRate * duration.TotalMinutes;
+                var disassociation = SlowCompartment * HexamerDisassociationRate * duration.TotalMinutes; 
+                var localDegradation =
+                    LocalDegradationSaturationHexamers * duration.TotalMinutes * SlowCompartment
+                    / ( LocalDegradationMidPointHexamers + SlowCompartment );
 
-            var dq2 = q1a * ka1 * duration.TotalMinutes;
-            dq2 -= q2 * ka1;
+                var reduction = lymphaticTransfer + disassociation + localDegradation;
+                if (reduction > SlowCompartment)
+                {
+                    var rationing = SlowCompartment / reduction;
+                    lymphaticTransfer *= rationing;
+                    disassociation *= rationing;
+                    localDegradation *= rationing;
+                }
 
-            var dq3 = q2 * ka1 * duration.TotalMinutes;
-            dq3 += q1b * ka2 * duration.TotalMinutes;
-            dq3 -= q3 * kElim;
+                SlowCompartment -= lymphaticTransfer;
+                SlowCompartment -= disassociation;
+                SlowCompartment -= localDegradation;
 
-            q1a += dq1a;
-            q1b += dq1b;
-            q2 += dq2;
-            q3 += dq3;
+                FastCompartment += disassociation;
+                Circulation += lymphaticTransfer;
+            }
 
-            if (q1a < 0)
-                q1a = 0;
+            FastCompartment += deposit * MonomericAndDimericFormsRatio;
+            if (FastCompartment > 0)
+            {
+                var capillaryTransfer = FastCompartment * BloodCapillaryAbsorptionRate * duration.TotalMinutes;
+                var localDegradation =
+                    LocalDegradationSaturationMonomers * duration.TotalMinutes * FastCompartment
+                    / ( LocalDegradationMidPointMonomers + FastCompartment );
 
-            if (q1b < 0)
-                q1b = 0;
+                var reduction = capillaryTransfer + localDegradation;
+                if (reduction > FastCompartment)
+                {
+                    var rationing = FastCompartment / reduction;
+                    capillaryTransfer *= rationing;
+                    localDegradation *= rationing;
+                }
 
-            if (q2 < 0)
-                q2 = 0;
+                FastCompartment -= capillaryTransfer;
+                FastCompartment -= localDegradation;
 
-            if (q3 < 0)
-                q3 = 0;
+                Circulation += capillaryTransfer;
+            }
+
+            Circulation -= EliminationRate * duration.TotalHours;
+            if (Circulation < 0)
+                Circulation = 0;
+
+            return (from, to, Circulation * Factorization);
         }
+
+        public event PropertyChangedEventHandler PropertyChanged;
     }
 }
