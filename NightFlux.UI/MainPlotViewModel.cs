@@ -100,7 +100,7 @@ namespace NightFlux.UI
             foreach (var gv in await nsql.BgValues(Start, End))
             {
                 if (last != 0d)
-                    BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (last - gv.Value)*GvFactor));
+                    BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.DateTime), (last - gv.Value)*GvFactor));
             
                 last = gv.Value;
             }
@@ -113,7 +113,7 @@ namespace NightFlux.UI
             {
                 // simulationSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.From.LocalDateTime),
                 //     iv.Value));
-                Simulation1Series.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).LocalDateTime),
+                Simulation1Series.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).DateTime),
                     Axis.ToDouble(iv.Value)));
             }
         }
