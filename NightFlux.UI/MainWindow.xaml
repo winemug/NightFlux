@@ -14,7 +14,23 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid Grid.Row="0">
-            <TextBox Text="{Binding GvFactor}"/>
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding GvFactor}"/>
+            <Slider Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Value="{Binding GvFactor}"
+                    Minimum="-15" Maximum="15"/>
+            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SimulationShift}"/>
+            <Slider Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Value="{Binding SimulationShift}"
+                    Minimum="-150" Maximum="150"/>
         </Grid>
         <Grid Grid.Row="1" DataContext="{Binding InsulinModel}">
             <Grid.RowDefinitions>
@@ -33,6 +49,7 @@
                 <ColumnDefinition/>
             </Grid.ColumnDefinitions>
                 <Button Grid.Row="0" Click="ButtonBase_OnClick">Gah</Button>
+            
                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MonomericAndDimericFormsRatio}"/>
                 <Slider Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Value="{Binding MonomericAndDimericFormsRatio}"
                          Minimum="0" Maximum="1"/>
@@ -42,6 +59,7 @@
                 <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Factorization}"/>
                 <Slider Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Value="{Binding Factorization}"
                         Minimum="0.5" Maximum="100"/>
+
                 <TextBox Grid.Row="2" Grid.Column="0" Text="{Binding HexamerDisassociationRate}"/>
                 <Slider Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Value="{Binding HexamerDisassociationRate}"
                         Minimum="0.001" Maximum="0.3"/>
@@ -54,6 +72,7 @@
                 <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding LocalDegradationMidPointHexamers}"/>
                 <Slider Grid.Row="3" Grid.Column="3" Orientation="Horizontal" Value="{Binding LocalDegradationMidPointHexamers}"
                         Minimum="0.1" Maximum="1"/>
+                
                 <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding BloodCapillaryAbsorptionRate}"/>
                 <Slider Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Value="{Binding BloodCapillaryAbsorptionRate}"
                         Minimum="0.001" Maximum="0.05"/>
