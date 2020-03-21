@@ -75,5 +75,36 @@ namespace NightFlux.Model
 
             return InfusionRatesInternal;
         }
+        
+        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Frames(TimeSpan TimeframeMax)
+        {
+            var rates = GetInfusionRates();
+            using var ratesEnum= rates.GetEnumerator();
+            ratesEnum.MoveNext();
+            var date = ratesEnum.Current.Key;
+            var rate = ratesEnum.Current.Value;
+            if (ratesEnum.MoveNext())
+            {
+                while (true)
+                {
+                    if (date + TimeframeMax < ratesEnum.Current.Key)
+                    {
+                        yield return (date,date + TimeframeMax, (double)rate);
+                        date = date + TimeframeMax;
+                    }
+                    else
+                    {
+                        if (date + TimeframeMax > ratesEnum.Current.Key)
+                        {
+                            yield return (date, ratesEnum.Current.Key, (double)rate);
+                        }
+                        date = ratesEnum.Current.Key;
+                        rate = ratesEnum.Current.Value;
+                        if (!ratesEnum.MoveNext())
+                            break;
+                    }
+                }
+            }
+        }
     }
 }

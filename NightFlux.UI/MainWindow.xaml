@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:o="http://oxyplot.org/wpf"
+        xmlns:ui="clr-namespace:NightFlux.UI"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800"
         Loaded="Window_Loaded">
@@ -13,27 +14,32 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Grid Grid.Row="0">
-            <Grid.RowDefinitions>
-                <RowDefinition/>
-                <RowDefinition/>
-            </Grid.RowDefinitions>
+        <Grid Grid.Row="0" Background="#FFF3F3">
+                <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
-                <ColumnDefinition/>
-                <ColumnDefinition/>
-                <ColumnDefinition/>
             </Grid.ColumnDefinitions>
-            <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding GvFactor}"/>
-            <Slider Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Value="{Binding GvFactor}"
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="bg diff factor"/>
+            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding GvFactor}"/>
+            <Slider Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Value="{Binding GvFactor}"
                     Minimum="-15" Maximum="15"/>
-            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SimulationShift}"/>
-            <Slider Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Value="{Binding SimulationShift}"
+            
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Simulation Shift Minutes"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SimulationShift}"/>
+            <Slider Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Value="{Binding SimulationShift}"
                     Minimum="-150" Maximum="150"/>
+            
         </Grid>
-        <Grid Grid.Row="1" DataContext="{Binding InsulinModel}">
+        <Grid Grid.Row="1" DataContext="{Binding InsulinModel}" Background="#F6F6FF">
             <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
                 <RowDefinition/>
                 <RowDefinition/>
                 <RowDefinition/>
@@ -47,40 +53,62 @@
                 <ColumnDefinition/>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
+                <ColumnDefinition/>
             </Grid.ColumnDefinitions>
-                <Button Grid.Row="0" Click="ButtonBase_OnClick">Gah</Button>
-            
-                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MonomericAndDimericFormsRatio}"/>
-                <Slider Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Value="{Binding MonomericAndDimericFormsRatio}"
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="MonomericAndDimericFormsRatio"/>
+                <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding MonomericAndDimericFormsRatio}"/>
+                <Slider Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Value="{Binding MonomericAndDimericFormsRatio}"
                          Minimum="0" Maximum="1"/>
-                <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding EliminationRate}"/>
-                <Slider Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Value="{Binding EliminationRate}"
+                
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="EliminationRate"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EliminationRate}"/>
+                <Slider Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Value="{Binding EliminationRate}"
                         Minimum="0.03" Maximum="0.06"/>
-                <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Factorization}"/>
-                <Slider Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Value="{Binding Factorization}"
+                
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Factorization"/>
+                <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Factorization}"/>
+                <Slider Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Value="{Binding Factorization}"
                         Minimum="0.5" Maximum="100"/>
 
-                <TextBox Grid.Row="2" Grid.Column="0" Text="{Binding HexamerDisassociationRate}"/>
-                <Slider Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Value="{Binding HexamerDisassociationRate}"
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="HexamerDisassociationRate"/>
+                <TextBox Grid.Row="4" Grid.Column="0" Text="{Binding HexamerDisassociationRate}"/>
+                <Slider Grid.Row="5" Grid.Column="0" Orientation="Horizontal" Value="{Binding HexamerDisassociationRate}"
                         Minimum="0.001" Maximum="0.3"/>
-                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LymphaticCapillaryAbsorptionRate}"/>
-                <Slider Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Value="{Binding LymphaticCapillaryAbsorptionRate}"
+                
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="LymphaticCapillaryAbsorptionRate"/>
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding LymphaticCapillaryAbsorptionRate}"/>
+                <Slider Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Value="{Binding LymphaticCapillaryAbsorptionRate}"
                         Minimum="0.001" Maximum="0.05"/>
-                <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding LocalDegradationSaturationHexamers}"/>
-                <Slider Grid.Row="3" Grid.Column="2" Orientation="Horizontal" Value="{Binding LocalDegradationSaturationHexamers}"
+                
+                <TextBlock Grid.Row="3" Grid.Column="2" Text="SecondaryCapillaryAbsorptionRate"/>
+                <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding SecondaryCapillaryAbsorptionRate}"/>
+                <Slider Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Value="{Binding SecondaryCapillaryAbsorptionRate}"
+                        Minimum="0.001" Maximum="0.05"/>
+                
+                <TextBlock Grid.Row="3" Grid.Column="3" Text="LocalDegradationSaturationHexamers"/>
+                <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding LocalDegradationSaturationHexamers}"/>
+                <Slider Grid.Row="5" Grid.Column="3" Orientation="Horizontal" Value="{Binding LocalDegradationSaturationHexamers}"
                         Minimum="0.02" Maximum="8"/>
-                <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding LocalDegradationMidPointHexamers}"/>
-                <Slider Grid.Row="3" Grid.Column="3" Orientation="Horizontal" Value="{Binding LocalDegradationMidPointHexamers}"
+                
+                <TextBlock Grid.Row="3" Grid.Column="4" Text="LocalDegradationMidPointHexamers"/>
+                <TextBox Grid.Row="4" Grid.Column="4" Text="{Binding LocalDegradationMidPointHexamers}"/>
+                <Slider Grid.Row="5" Grid.Column="4" Orientation="Horizontal" Value="{Binding LocalDegradationMidPointHexamers}"
                         Minimum="0.1" Maximum="1"/>
                 
-                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding BloodCapillaryAbsorptionRate}"/>
-                <Slider Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Value="{Binding BloodCapillaryAbsorptionRate}"
+                <TextBlock Grid.Row="6" Grid.Column="2" Text="BloodCapillaryAbsorptionRate"/>
+                <TextBox Grid.Row="7" Grid.Column="2" Text="{Binding BloodCapillaryAbsorptionRate}"/>
+                <Slider Grid.Row="8" Grid.Column="2" Orientation="Horizontal" Value="{Binding BloodCapillaryAbsorptionRate}"
                         Minimum="0.001" Maximum="0.05"/>
-                <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding LocalDegradationSaturationMonomers}"/>
-                <Slider Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Value="{Binding LocalDegradationSaturationMonomers}"
+                
+                <TextBlock Grid.Row="6" Grid.Column="3" Text="LocalDegradationSaturationMonomers"/>
+                <TextBox Grid.Row="7" Grid.Column="3" Text="{Binding LocalDegradationSaturationMonomers}"/>
+                <Slider Grid.Row="8" Grid.Column="3" Orientation="Horizontal" Value="{Binding LocalDegradationSaturationMonomers}"
                         Minimum="0.02" Maximum="8"/>
-                <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding LocalDegradationMidPointMonomers}"/>
-                <Slider Grid.Row="5" Grid.Column="3" Orientation="Horizontal" Value="{Binding LocalDegradationMidPointMonomers}"
+                
+                <TextBlock Grid.Row="6" Grid.Column="4" Text="LocalDegradationMidPointMonomers"/>
+                <TextBox Grid.Row="7" Grid.Column="4" Text="{Binding LocalDegradationMidPointMonomers}"/>
+                <Slider Grid.Row="8" Grid.Column="4" Orientation="Horizontal" Value="{Binding LocalDegradationMidPointMonomers}"
                         Minimum="0.1" Maximum="1"/>
         </Grid>
         <o:PlotView Grid.Row="2" Model="{Binding Model1}"/>

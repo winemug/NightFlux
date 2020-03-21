@@ -26,9 +26,10 @@ namespace NightFlux.UI
         public DateTimeOffset End { get; set; }
 
         public double GvFactor { get; set; } = -1.0;
-        public double SimulationShift { get; set; } = 0;
+        public double SimulationShift { get; set; } = 3;
 
         private LineSeries BgSeriesDiff;
+        private LineSeries BgSeries;
         private LineSeries Simulation1Series;
         private LineSeries InfusionSeries;
         
@@ -45,16 +46,18 @@ namespace NightFlux.UI
                 Position = AxisPosition.Bottom,
                 Minimum = DateTimeAxis.ToDouble(End.LocalDateTime.AddDays(-1)),
                 Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
+
+            Model1.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
+                Minimum = 20,
+                Maximum = 440,
+                Key = "bg"
+            });
             
             Model1.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
                 Minimum = -40,
                 Maximum = 40,
                 Key = "dbg"
             });
-            
-            BgSeriesDiff = new LineSeries() {YAxisKey = "dbg"};
-            Model1.Series.Add(BgSeriesDiff);
-
             Model1.Axes.Add(new LinearAxis
             {
                 Position = AxisPosition.Right,
@@ -63,8 +66,18 @@ namespace NightFlux.UI
                 Key = "ia"
             });
 
+            BgSeries = new LineSeries() {YAxisKey = "bg"};
+            Model1.Series.Add(BgSeries);
+            
+            BgSeriesDiff = new LineSeries() {YAxisKey = "dbg"};
+            //Model1.Series.Add(BgSeriesDiff);
+
             Simulation1Series = new LineSeries() {YAxisKey = "ia"};
             Model1.Series.Add(Simulation1Series);
+            
+            InfusionSeries = new LineSeries()  {YAxisKey = "ia"};
+            Model1.Series.Add(InfusionSeries);
+            
             DelayedUpdate();
         }
         
@@ -97,8 +110,10 @@ namespace NightFlux.UI
             var nsql = await NightSql.GetInstance(App.Configuration);
             var last = 0d;
             BgSeriesDiff.Points.Clear();
+            BgSeries.Points.Clear();
             foreach (var gv in await nsql.BgValues(Start, End))
             {
+                BgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.DateTime), gv.Value));
                 if (last != 0d)
                     BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.DateTime), (last - gv.Value)*GvFactor));
             
@@ -109,12 +124,23 @@ namespace NightFlux.UI
             var ps = podSessions.Last(ps => ps.Hormone == HormoneType.InsulinAspart);
 
             Simulation1Series.Points.Clear();
-            foreach (var iv in InsulinModel.Run(ps.InfusionRates))
+            foreach (var iv in InsulinModel.Run(ps))
             {
                 // simulationSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.From.LocalDateTime),
                 //     iv.Value));
                 Simulation1Series.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).DateTime),
                     Axis.ToDouble(iv.Value)));
+            }
+            
+            InfusionSeries.Points.Clear();
+            foreach (var fv in ps.Frames(TimeSpan.FromMinutes(1)))
+            {
+                // simulationSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.From.LocalDateTime),
+                //     iv.Value));
+                InfusionSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.DateTime),
+                    Axis.ToDouble(fv.Value)));
+                InfusionSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.DateTime),
+                    Axis.ToDouble(fv.Value)));
             }
         }
     }
