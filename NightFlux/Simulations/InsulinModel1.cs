@@ -34,16 +34,16 @@ namespace NightFlux.Simulations
         public double MonomericAndDimericFormsRatio { get; set; } = 0.25; // ml / mL 
         public double HexamerDisassociationRate { get; set; } = 0.3; // mU / min
 
-        public double BloodCapillaryAbsorptionRate { get; set; } = 0.05; // mU / min
-        public double SecondaryCapillaryAbsorptionRate { get; set; } = 0.04; // mU / min
+        public double BloodCapillaryAbsorptionRate { get; set; } = 0.02; // mU / min
+        public double SecondaryCapillaryAbsorptionRate { get; set; } = 0.02; // mU / min
         public double LymphaticCapillaryAbsorptionRate { get; set; } = 0.01; // mU / min
         public double EliminationRate { get; set; } = 0.0368; // mU / min
 
-        public double LocalDegradationSaturationMonomers { get; set; } = 0.006; // mU / min
-        public double LocalDegradationMidPointMonomers { get; set; } = 0.6; // mU
+        public double LocalDegradationSaturationMonomers { get; set; } = 1.93; // mU / min
+        public double LocalDegradationMidPointMonomers { get; set; } = 62.6; // mU
 
-        public double LocalDegradationSaturationHexamers { get; set; } = 0.006; // mU / min
-        public double LocalDegradationMidPointHexamers { get; set; } = 0.6; // mU
+        public double LocalDegradationSaturationHexamers { get; set; } = 1.93; // mU / min
+        public double LocalDegradationMidPointHexamers { get; set; } = 62.6; // mU
 
         public TimeSpan MinSimulationSpan = TimeSpan.FromMinutes(1);
 
@@ -51,13 +51,13 @@ namespace NightFlux.Simulations
         {
         }
        
-        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Run(PodSession podSession)
+        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Run(PodSession podSession, TimeSpan window, TimeSpan prolongation)
         {
             FastCompartment = 0;
             SlowCompartment = 0;
             Circulation = 0;
 
-            foreach (var frame in podSession.Frames(MinSimulationSpan))
+            foreach (var frame in podSession.Frames(window, prolongation))
             {
                 yield return ExecuteFrame(frame.From,frame.To, frame.Value);
             }
@@ -81,43 +81,20 @@ namespace NightFlux.Simulations
             var capillaryTransfer = 0d;
             var fastLocalDegradation = 0d;
             
-            if (SlowCompartment > 0)
-            {
+            lymphaticTransfer = LymphaticCapillaryAbsorptionRate * SlowCompartment;
+            disassociation = HexamerDisassociationRate * SlowCompartment; 
+            slowLocalDegradation =
+                LocalDegradationSaturationHexamers * SlowCompartment 
+                / ( LocalDegradationMidPointHexamers + SlowCompartment );
 
-                var reduction = lymphaticTransfer + disassociation + slowLocalDegradation;
-                if (reduction > SlowCompartment)
-                {
-                    var rationing = SlowCompartment / reduction;
-                    lymphaticTransfer *= rationing;
-                    disassociation *= rationing;
-                    slowLocalDegradation *= rationing;
-                }
-            }
-
-            if (DisassociationCompartment > 0)
-            {
-                secondaryCapillaryTransfer =
-                    DisassociationCompartment * SecondaryCapillaryAbsorptionRate * durationMinutes;
-                if (secondaryCapillaryTransfer > DisassociationCompartment)
-                    secondaryCapillaryTransfer = DisassociationCompartment;
-                
-            }
+            secondaryCapillaryTransfer = SecondaryCapillaryAbsorptionRate * DisassociationCompartment;
+            if (secondaryCapillaryTransfer > DisassociationCompartment)
+                secondaryCapillaryTransfer = DisassociationCompartment;
             
-            if (FastCompartment > 0)
-            {
-                capillaryTransfer = FastCompartment * BloodCapillaryAbsorptionRate * durationMinutes;
-                fastLocalDegradation =
-                    LocalDegradationSaturationMonomers * FastCompartment * durationMinutes
-                    / (LocalDegradationMidPointMonomers + FastCompartment);
-
-                var reduction = capillaryTransfer + fastLocalDegradation;
-                if (reduction > FastCompartment)
-                {
-                    var rationing = FastCompartment / reduction;
-                    capillaryTransfer *= rationing;
-                    fastLocalDegradation *= rationing;
-                }
-            }
+            capillaryTransfer = BloodCapillaryAbsorptionRate * FastCompartment;
+            fastLocalDegradation =
+                LocalDegradationSaturationMonomers * FastCompartment 
+                / (LocalDegradationMidPointMonomers + FastCompartment);
 
             // Debug.WriteLine($"{from}\t{to}\t{SlowCompartment:F4}\t{slowLocalDegradation:F4}\t{FastCompartment:F4}\t{fastLocalDegradation:F4}");
 
@@ -125,21 +102,27 @@ namespace NightFlux.Simulations
             SlowCompartment -= lymphaticTransfer;
             SlowCompartment -= disassociation;
             SlowCompartment -= slowLocalDegradation;
+            if (SlowCompartment < 0)
+                SlowCompartment = 0;
             
             DisassociationCompartment += disassociation;
             DisassociationCompartment -= secondaryCapillaryTransfer;
+            if (DisassociationCompartment < 0)
+                DisassociationCompartment = 0;
             
             FastCompartment += deposit * MonomericAndDimericFormsRatio;
             FastCompartment -= capillaryTransfer;
             FastCompartment -= fastLocalDegradation;
+            if (FastCompartment < 0)
+                FastCompartment = 0;
             
+            Circulation -= EliminationRate * Circulation;
+            if (Circulation < 0)
+                Circulation = 0;
+
             Circulation += lymphaticTransfer;
             Circulation += capillaryTransfer;
             Circulation += secondaryCapillaryTransfer;
-            Circulation -= EliminationRate * durationMinutes;
-
-            if (Circulation < 0)
-                Circulation = 0;
             
 
             return (from, to, Circulation * Factorization);

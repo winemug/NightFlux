@@ -55,7 +55,7 @@ namespace NightFlux.UI
             {
                 Position = AxisPosition.Right,
                 Minimum = 0,
-                Maximum = 20,
+                Maximum = 120,
                 Key = "ia"
             });
 
@@ -117,7 +117,7 @@ namespace NightFlux.UI
                 if (ps.Hormone == HormoneType.InsulinAspart)
                 {
                     var simulationSerie = new LineSeries() { YAxisKey = "ia" };
-                    foreach (var iv in InsulinModel.Run(ps))
+                    foreach (var iv in InsulinModel.Run(ps, TimeSpan.FromMinutes(1), TimeSpan.FromHours(6) ))
                     {
                         simulationSerie.Points.Add(new DataPoint(
                             DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).LocalDateTime),
@@ -126,7 +126,7 @@ namespace NightFlux.UI
                     Model1.Series.Add(simulationSerie);
                     
                     var infusionSerie = new LineSeries() { YAxisKey = "ia" };
-                    foreach (var fv in ps.Frames(TimeSpan.FromMinutes(1)))
+                    foreach (var fv in ps.Frames(TimeSpan.FromMinutes(1), TimeSpan.FromHours(6)))
                     {
                         //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
                         infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.LocalDateTime),

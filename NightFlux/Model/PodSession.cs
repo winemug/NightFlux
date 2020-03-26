@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NightFlux.Model
 {
@@ -44,7 +45,7 @@ namespace NightFlux.Model
         public void Bolus(DateTimeOffset date, int tickCount)
         {
             var tickDurationSeconds = tickCount * 2;
-            Rates.Add((date, null, 10800 * TickUnits, null));
+            Rates.Add((date, null, 1800 * TickUnits, null));
             Rates.Add((date.AddSeconds(tickDurationSeconds), null, 0, null));
         }
 
@@ -76,35 +77,63 @@ namespace NightFlux.Model
             return InfusionRatesInternal;
         }
         
-        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Frames(TimeSpan TimeframeMax)
+        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Frames(TimeSpan window, TimeSpan prolongation)
         {
             var rates = GetInfusionRates();
-            using var ratesEnum= rates.GetEnumerator();
-            ratesEnum.MoveNext();
-            var date = ratesEnum.Current.Key;
-            var rate = ratesEnum.Current.Value;
-            if (ratesEnum.MoveNext())
+            var start = rates.First().Key;
+            var end = rates.Last().Key + prolongation;
+            return WindowedAverages(start, end, window, rates);
+        }
+
+        private IEnumerable<(DateTimeOffset start, DateTimeOffset end, double average)>
+            WindowedAverages(DateTimeOffset start, DateTimeOffset end, TimeSpan window,
+            IDictionary<DateTimeOffset, decimal> rates)
+        {
+            var tnext = DateTimeOffset.MinValue;
+            var rnext = 0d;
+            var r = 0d;
+
+            using var re= rates.GetEnumerator();
+
+            var t0 = start;
+
+            while (t0 < end)
             {
-                while (true)
+                var t1 = t0 + window;
+
+                var windowedTotal = 0d;
+                // range t0 to t1
+                while (t0 < t1)
                 {
-                    if (date + TimeframeMax < ratesEnum.Current.Key)
+                    while (tnext <= t0)
                     {
-                        yield return (date, date + TimeframeMax, (double)rate);
-                        date = date + TimeframeMax;
+                        r = rnext;
+                        if (re.MoveNext())
+                        {
+                            tnext = re.Current.Key;
+                            rnext = (double) re.Current.Value;
+                        }
+                        else
+                        {
+                            tnext = DateTime.MaxValue;
+                        }
+                    }
+                    
+                    if (tnext < t1)
+                    {
+                        windowedTotal += r * (tnext - t0).TotalMilliseconds;
+                        t0 = tnext;
                     }
                     else
                     {
-                        if (date + TimeframeMax >= ratesEnum.Current.Key)
-                        {
-                            yield return (date, ratesEnum.Current.Key, (double)rate);
-                        }
-                        date = ratesEnum.Current.Key;
-                        rate = ratesEnum.Current.Value;
-                        if (!ratesEnum.MoveNext())
-                            break;
+                        windowedTotal += r * (t1 - t0).TotalMilliseconds;
+                        t0 = t1;
                     }
                 }
+
+                yield return (t1 - window, t1, windowedTotal / window.TotalMilliseconds);
             }
+
         }
     }
 }
