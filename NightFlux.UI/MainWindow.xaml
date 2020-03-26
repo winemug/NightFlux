@@ -64,7 +64,7 @@
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="EliminationRate"/>
                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EliminationRate}"/>
                 <Slider Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Value="{Binding EliminationRate}"
-                        Minimum="0.03" Maximum="0.06"/>
+                        Minimum="0.001" Maximum="3"/>
                 
                 <TextBlock Grid.Row="0" Grid.Column="2" Text="Factorization"/>
                 <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Factorization}"/>
@@ -74,17 +74,17 @@
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="HexamerDisassociationRate"/>
                 <TextBox Grid.Row="4" Grid.Column="0" Text="{Binding HexamerDisassociationRate}"/>
                 <Slider Grid.Row="5" Grid.Column="0" Orientation="Horizontal" Value="{Binding HexamerDisassociationRate}"
-                        Minimum="0.001" Maximum="0.3"/>
+                        Minimum="0.001" Maximum="3"/>
                 
                 <TextBlock Grid.Row="3" Grid.Column="1" Text="LymphaticCapillaryAbsorptionRate"/>
                 <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding LymphaticCapillaryAbsorptionRate}"/>
                 <Slider Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Value="{Binding LymphaticCapillaryAbsorptionRate}"
-                        Minimum="0.001" Maximum="0.05"/>
+                        Minimum="0.001" Maximum="0.3"/>
                 
                 <TextBlock Grid.Row="3" Grid.Column="2" Text="SecondaryCapillaryAbsorptionRate"/>
                 <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding SecondaryCapillaryAbsorptionRate}"/>
                 <Slider Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Value="{Binding SecondaryCapillaryAbsorptionRate}"
-                        Minimum="0.001" Maximum="0.05"/>
+                        Minimum="0.001" Maximum="0.3"/>
                 
                 <TextBlock Grid.Row="3" Grid.Column="3" Text="LocalDegradationSaturationHexamers"/>
                 <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding LocalDegradationSaturationHexamers}"/>
@@ -99,7 +99,7 @@
                 <TextBlock Grid.Row="6" Grid.Column="2" Text="BloodCapillaryAbsorptionRate"/>
                 <TextBox Grid.Row="7" Grid.Column="2" Text="{Binding BloodCapillaryAbsorptionRate}"/>
                 <Slider Grid.Row="8" Grid.Column="2" Orientation="Horizontal" Value="{Binding BloodCapillaryAbsorptionRate}"
-                        Minimum="0.001" Maximum="0.05"/>
+                        Minimum="0.001" Maximum="0.3"/>
                 
                 <TextBlock Grid.Row="6" Grid.Column="3" Text="LocalDegradationSaturationMonomers"/>
                 <TextBox Grid.Row="7" Grid.Column="3" Text="{Binding LocalDegradationSaturationMonomers}"/>

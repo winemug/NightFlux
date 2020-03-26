@@ -89,12 +89,12 @@ namespace NightFlux.Model
                 {
                     if (date + TimeframeMax < ratesEnum.Current.Key)
                     {
-                        yield return (date,date + TimeframeMax, (double)rate);
+                        yield return (date, date + TimeframeMax, (double)rate);
                         date = date + TimeframeMax;
                     }
                     else
                     {
-                        if (date + TimeframeMax > ratesEnum.Current.Key)
+                        if (date + TimeframeMax >= ratesEnum.Current.Key)
                         {
                             yield return (date, ratesEnum.Current.Key, (double)rate);
                         }

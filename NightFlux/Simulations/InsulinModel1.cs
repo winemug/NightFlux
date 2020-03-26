@@ -30,20 +30,20 @@ namespace NightFlux.Simulations
         // blocked capillary pathways -> introduce delays before new pathway creation and rate increase afterwards
 
 
-        public double Factorization { get; set; } = 15.00;
+        public double Factorization { get; set; } = 1.00;
         public double MonomericAndDimericFormsRatio { get; set; } = 0.25; // ml / mL 
-        public double HexamerDisassociationRate { get; set; } = 0.08; // mU / min
+        public double HexamerDisassociationRate { get; set; } = 0.3; // mU / min
 
+        public double BloodCapillaryAbsorptionRate { get; set; } = 0.05; // mU / min
         public double SecondaryCapillaryAbsorptionRate { get; set; } = 0.04; // mU / min
-        public double BloodCapillaryAbsorptionRate { get; set; } = 0.03; // mU / min
-        public double LymphaticCapillaryAbsorptionRate { get; set; } = 0.006; // mU / min
+        public double LymphaticCapillaryAbsorptionRate { get; set; } = 0.01; // mU / min
         public double EliminationRate { get; set; } = 0.0368; // mU / min
 
-        public double LocalDegradationSaturationMonomers { get; set; } = 0.9; // mU / min
-        public double LocalDegradationMidPointMonomers { get; set; } = 0.7; // mU
+        public double LocalDegradationSaturationMonomers { get; set; } = 0.006; // mU / min
+        public double LocalDegradationMidPointMonomers { get; set; } = 0.6; // mU
 
-        public double LocalDegradationSaturationHexamers { get; set; } = 0.9; // mU / min
-        public double LocalDegradationMidPointHexamers { get; set; } = 0.7; // mU
+        public double LocalDegradationSaturationHexamers { get; set; } = 0.006; // mU / min
+        public double LocalDegradationMidPointHexamers { get; set; } = 0.6; // mU
 
         public TimeSpan MinSimulationSpan = TimeSpan.FromMinutes(1);
 
@@ -68,9 +68,9 @@ namespace NightFlux.Simulations
             (DateTimeOffset from, DateTimeOffset to, double hourlyRate)
         {
             //Debug.WriteLine($"{from} {to} {hourlyRate}");
-            var duration = to - from;
+            var durationMinutes = (to - from).Minutes;
 
-            var deposit = hourlyRate * duration.TotalHours;
+            var deposit = hourlyRate / 60d * durationMinutes;
 
             var lymphaticTransfer = 0d;
             var disassociation = 0d;
@@ -83,11 +83,6 @@ namespace NightFlux.Simulations
             
             if (SlowCompartment > 0)
             {
-                lymphaticTransfer = SlowCompartment * LymphaticCapillaryAbsorptionRate * duration.TotalMinutes;
-                disassociation = SlowCompartment * HexamerDisassociationRate * duration.TotalMinutes; 
-                slowLocalDegradation =
-                    LocalDegradationSaturationHexamers * duration.TotalMinutes * SlowCompartment
-                    / ( LocalDegradationMidPointHexamers + SlowCompartment );
 
                 var reduction = lymphaticTransfer + disassociation + slowLocalDegradation;
                 if (reduction > SlowCompartment)
@@ -102,7 +97,7 @@ namespace NightFlux.Simulations
             if (DisassociationCompartment > 0)
             {
                 secondaryCapillaryTransfer =
-                    DisassociationCompartment * SecondaryCapillaryAbsorptionRate * duration.TotalMinutes;
+                    DisassociationCompartment * SecondaryCapillaryAbsorptionRate * durationMinutes;
                 if (secondaryCapillaryTransfer > DisassociationCompartment)
                     secondaryCapillaryTransfer = DisassociationCompartment;
                 
@@ -110,9 +105,9 @@ namespace NightFlux.Simulations
             
             if (FastCompartment > 0)
             {
-                capillaryTransfer = FastCompartment * BloodCapillaryAbsorptionRate * duration.TotalMinutes;
+                capillaryTransfer = FastCompartment * BloodCapillaryAbsorptionRate * durationMinutes;
                 fastLocalDegradation =
-                    LocalDegradationSaturationMonomers * duration.TotalMinutes * FastCompartment
+                    LocalDegradationSaturationMonomers * FastCompartment * durationMinutes
                     / (LocalDegradationMidPointMonomers + FastCompartment);
 
                 var reduction = capillaryTransfer + fastLocalDegradation;
@@ -124,25 +119,28 @@ namespace NightFlux.Simulations
                 }
             }
 
+            // Debug.WriteLine($"{from}\t{to}\t{SlowCompartment:F4}\t{slowLocalDegradation:F4}\t{FastCompartment:F4}\t{fastLocalDegradation:F4}");
+
             SlowCompartment += deposit * (1 - MonomericAndDimericFormsRatio);
             SlowCompartment -= lymphaticTransfer;
             SlowCompartment -= disassociation;
             SlowCompartment -= slowLocalDegradation;
-
+            
             DisassociationCompartment += disassociation;
             DisassociationCompartment -= secondaryCapillaryTransfer;
-
+            
             FastCompartment += deposit * MonomericAndDimericFormsRatio;
             FastCompartment -= capillaryTransfer;
             FastCompartment -= fastLocalDegradation;
-
+            
             Circulation += lymphaticTransfer;
             Circulation += capillaryTransfer;
             Circulation += secondaryCapillaryTransfer;
-            Circulation -= EliminationRate * duration.TotalHours;
-            
+            Circulation -= EliminationRate * durationMinutes;
+
             if (Circulation < 0)
                 Circulation = 0;
+            
 
             return (from, to, Circulation * Factorization);
         }

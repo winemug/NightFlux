@@ -2,7 +2,9 @@
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,12 +28,8 @@ namespace NightFlux.UI
         public DateTimeOffset End { get; set; }
 
         public double GvFactor { get; set; } = -1.0;
-        public double SimulationShift { get; set; } = 3;
+        public double SimulationShift { get; set; } = 0;
 
-        private LineSeries BgSeriesDiff;
-        private LineSeries BgSeries;
-        private LineSeries Simulation1Series;
-        private LineSeries InfusionSeries;
         
         public MainPlotViewModel()
         {
@@ -53,31 +51,15 @@ namespace NightFlux.UI
                 Key = "bg"
             });
             
-            Model1.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
-                Minimum = -40,
-                Maximum = 40,
-                Key = "dbg"
-            });
             Model1.Axes.Add(new LinearAxis
             {
                 Position = AxisPosition.Right,
                 Minimum = 0,
-                Maximum = 50,
+                Maximum = 20,
                 Key = "ia"
             });
 
-            BgSeries = new LineSeries() {YAxisKey = "bg"};
-            Model1.Series.Add(BgSeries);
-            
-            BgSeriesDiff = new LineSeries() {YAxisKey = "dbg"};
-            //Model1.Series.Add(BgSeriesDiff);
-
-            Simulation1Series = new LineSeries() {YAxisKey = "ia"};
-            Model1.Series.Add(Simulation1Series);
-            
-            InfusionSeries = new LineSeries()  {YAxisKey = "ia"};
-            Model1.Series.Add(InfusionSeries);
-            
+           
             DelayedUpdate();
         }
         
@@ -108,39 +90,53 @@ namespace NightFlux.UI
         private async Task SetModelData()
         {
             var nsql = await NightSql.GetInstance(App.Configuration);
-            var last = 0d;
-            BgSeriesDiff.Points.Clear();
-            BgSeries.Points.Clear();
+
+            var s = Model1.Series.FirstOrDefault() as LineSeries;
+            if (s == null)
+            {
+                s = new LineSeries() {YAxisKey = "bg", Title="BG"};
+                Model1.Series.Add(s);
+            }
+
+            s.Points.Clear();
+            //var last = 0d;
             foreach (var gv in await nsql.BgValues(Start, End))
             {
-                BgSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.DateTime), gv.Value));
-                if (last != 0d)
-                    BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.DateTime), (last - gv.Value)*GvFactor));
-            
-                last = gv.Value;
+                s.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), gv.Value));
+                //if (last != 0d)
+                //    BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (last - gv.Value)*GvFactor));
+                //last = gv.Value;
             }
+
+            while (Model1.Series.Count > 1)
+                Model1.Series.RemoveAt(1);
             
             var podSessions = await nsql.PodSessions(Start, End);
-            var ps = podSessions.Last(ps => ps.Hormone == HormoneType.InsulinAspart);
-
-            Simulation1Series.Points.Clear();
-            foreach (var iv in InsulinModel.Run(ps))
+            foreach (var ps in podSessions)
             {
-                // simulationSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.From.LocalDateTime),
-                //     iv.Value));
-                Simulation1Series.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).DateTime),
-                    Axis.ToDouble(iv.Value)));
-            }
-            
-            InfusionSeries.Points.Clear();
-            foreach (var fv in ps.Frames(TimeSpan.FromMinutes(1)))
-            {
-                // simulationSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(iv.From.LocalDateTime),
-                //     iv.Value));
-                InfusionSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.DateTime),
-                    Axis.ToDouble(fv.Value)));
-                InfusionSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.DateTime),
-                    Axis.ToDouble(fv.Value)));
+                if (ps.Hormone == HormoneType.InsulinAspart)
+                {
+                    var simulationSerie = new LineSeries() { YAxisKey = "ia" };
+                    foreach (var iv in InsulinModel.Run(ps))
+                    {
+                        simulationSerie.Points.Add(new DataPoint(
+                            DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).LocalDateTime),
+                            Axis.ToDouble(iv.Value)));
+                    }
+                    Model1.Series.Add(simulationSerie);
+                    
+                    var infusionSerie = new LineSeries() { YAxisKey = "ia" };
+                    foreach (var fv in ps.Frames(TimeSpan.FromMinutes(1)))
+                    {
+                        //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
+                        infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.LocalDateTime),
+                            Axis.ToDouble(fv.Value)));
+                        infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.LocalDateTime),
+                            Axis.ToDouble(fv.Value)));
+                    }
+                    
+                    Model1.Series.Add(infusionSerie);
+                }
             }
         }
     }
