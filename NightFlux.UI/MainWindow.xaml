@@ -23,6 +23,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
+                <ColumnDefinition/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Row="0" Grid.Column="0" Text="bg diff factor"/>
             <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding GvFactor}"/>
@@ -33,6 +34,11 @@
             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SimulationShift}"/>
             <Slider Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Value="{Binding SimulationShift}"
                     Minimum="-150" Maximum="150"/>
+            
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Infusion Window Minutes"/>
+            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding WindowMinutes}"/>
+            <Slider Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Value="{Binding WindowMinutes}"
+                    Minimum="1" Maximum="360"/>
             
         </Grid>
         <Grid Grid.Row="1" DataContext="{Binding InsulinModel}" Background="#F6F6FF">

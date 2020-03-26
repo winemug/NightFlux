@@ -51,13 +51,13 @@ namespace NightFlux.Simulations
         {
         }
        
-        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Run(PodSession podSession, TimeSpan window, TimeSpan prolongation)
+        public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Run(PodSession podSession, TimeSpan prolongation)
         {
             FastCompartment = 0;
             SlowCompartment = 0;
             Circulation = 0;
 
-            foreach (var frame in podSession.Frames(window, prolongation))
+            foreach (var frame in podSession.Frames(TimeSpan.FromMinutes(1), prolongation))
             {
                 yield return ExecuteFrame(frame.From,frame.To, frame.Value);
             }

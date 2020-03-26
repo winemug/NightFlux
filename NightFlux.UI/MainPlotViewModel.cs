@@ -30,6 +30,7 @@ namespace NightFlux.UI
         public double GvFactor { get; set; } = -1.0;
         public double SimulationShift { get; set; } = 0;
 
+        public double WindowMinutes { get; set; } = 1;
         
         public MainPlotViewModel()
         {
@@ -94,7 +95,11 @@ namespace NightFlux.UI
             var s = Model1.Series.FirstOrDefault() as LineSeries;
             if (s == null)
             {
-                s = new LineSeries() {YAxisKey = "bg", Title="BG"};
+                s = new LineSeries() {
+                    YAxisKey = "bg",
+                    Title="BG",
+                    Color = OxyColor.FromRgb(255, 0, 0)
+                };
                 Model1.Series.Add(s);
             }
 
@@ -102,7 +107,7 @@ namespace NightFlux.UI
             //var last = 0d;
             foreach (var gv in await nsql.BgValues(Start, End))
             {
-                s.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), gv.Value));
+                s.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), 440d - gv.Value));
                 //if (last != 0d)
                 //    BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (last - gv.Value)*GvFactor));
                 //last = gv.Value;
@@ -116,8 +121,12 @@ namespace NightFlux.UI
             {
                 if (ps.Hormone == HormoneType.InsulinAspart)
                 {
-                    var simulationSerie = new LineSeries() { YAxisKey = "ia" };
-                    foreach (var iv in InsulinModel.Run(ps, TimeSpan.FromMinutes(1), TimeSpan.FromHours(6) ))
+                    var simulationSerie = new LineSeries()
+                    {
+                        YAxisKey = "ia",
+                        Color = OxyColor.FromRgb(35,215,255)
+                    };
+                    foreach (var iv in InsulinModel.Run(ps,TimeSpan.FromHours(12) ))
                     {
                         simulationSerie.Points.Add(new DataPoint(
                             DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).LocalDateTime),
@@ -125,8 +134,13 @@ namespace NightFlux.UI
                     }
                     Model1.Series.Add(simulationSerie);
                     
-                    var infusionSerie = new LineSeries() { YAxisKey = "ia" };
-                    foreach (var fv in ps.Frames(TimeSpan.FromMinutes(1), TimeSpan.FromHours(6)))
+                    var infusionSerie = new LineSeries()
+                    {
+                        YAxisKey = "ia",
+                        Color = OxyColor.FromRgb(0,128,255),
+                        LineStyle = LineStyle.Dash
+                    };
+                    foreach (var fv in ps.Frames(TimeSpan.FromMinutes(WindowMinutes), TimeSpan.FromHours(12)))
                     {
                         //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
                         infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.LocalDateTime),
