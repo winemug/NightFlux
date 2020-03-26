@@ -56,7 +56,7 @@ namespace NightFlux.UI
             {
                 Position = AxisPosition.Right,
                 Minimum = 0,
-                Maximum = 120,
+                Maximum = 220,
                 Key = "ia"
             });
 
@@ -140,6 +140,7 @@ namespace NightFlux.UI
                         Color = OxyColor.FromRgb(0,128,255),
                         LineStyle = LineStyle.Dash
                     };
+
                     foreach (var fv in ps.Frames(TimeSpan.FromMinutes(WindowMinutes), TimeSpan.FromHours(12)))
                     {
                         //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
@@ -147,9 +148,28 @@ namespace NightFlux.UI
                             Axis.ToDouble(fv.Value)));
                         infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.LocalDateTime),
                             Axis.ToDouble(fv.Value)));
+                        
                     }
-                    
                     Model1.Series.Add(infusionSerie);
+                    
+                    var totalSerie = new AreaSeries()
+                    {
+                        YAxisKey = "ia",
+                        Color = OxyColors.GreenYellow
+                    };
+                    var sum = 0d;
+                    var span = TimeSpan.FromMinutes(1);
+                    foreach (var fv in ps.Frames(span, TimeSpan.FromHours(0)))
+                    {
+                        //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
+                        totalSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.LocalDateTime),
+                            Axis.ToDouble(sum)));
+                        sum += (fv.Value * span.TotalHours);
+                        totalSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.LocalDateTime),
+                            Axis.ToDouble(sum)));
+                    }
+                    Model1.Series.Add(totalSerie);
+
                 }
             }
         }
