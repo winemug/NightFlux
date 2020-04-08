@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using NightFlux.Data;
 using NightFlux.Imports;
 
 namespace NightFlux.UI
@@ -19,7 +20,8 @@ namespace NightFlux.UI
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            await NightSync.Run(App.Configuration);
+            // var nfc = NightFluxConnection.GetInstance(App.Configuration);
+            // await nfc.RunSync();
         }
 
         private async void ButtonBase_OnClick(object sender, RoutedEventArgs e)

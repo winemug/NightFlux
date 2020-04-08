@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NightFlux.Data;
+using NightFlux.Imports;
 using NightFlux.Model;
 using NightFlux.Simulations;
 using Nito.AsyncEx;
@@ -34,7 +35,7 @@ namespace NightFlux.UI
         
         public MainPlotViewModel()
         {
-            Start = DateTimeOffset.UtcNow.AddDays(-14);
+            Start = DateTimeOffset.UtcNow.AddDays(-28);
             End = DateTimeOffset.UtcNow;
             InsulinModel = new InsulinModel1();
             InsulinModel.PropertyChanged += (sender, args) => DelayedUpdate();
@@ -47,17 +48,19 @@ namespace NightFlux.UI
                 Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
 
             Model1.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
+                Title = "BG (mg/dL)",
                 Minimum = 20,
-                Maximum = 440,
+                Maximum = 400,
                 Key = "bg"
             });
             
             Model1.Axes.Add(new LinearAxis
             {
+                Title = "Insulin (U)",
                 Position = AxisPosition.Right,
                 Minimum = 0,
-                Maximum = 220,
-                Key = "ia"
+                Maximum = 250,
+                Key = "insulin"
             });
 
            
@@ -90,7 +93,8 @@ namespace NightFlux.UI
 
         private async Task SetModelData()
         {
-            var nsql = await NightSql.GetInstance(App.Configuration);
+            using var nsReader = new NightscoutReader(App.Configuration);
+            var tsvReader = new TsvReader(App.Configuration);
 
             var s = Model1.Series.FirstOrDefault() as LineSeries;
             if (s == null)
@@ -105,7 +109,7 @@ namespace NightFlux.UI
 
             s.Points.Clear();
             //var last = 0d;
-            foreach (var gv in await nsql.BgValues(Start, End))
+            await foreach (var gv in nsReader.BgValues(Start, End))
             {
                 s.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), 440d - gv.Value));
                 //if (last != 0d)
@@ -116,14 +120,13 @@ namespace NightFlux.UI
             while (Model1.Series.Count > 1)
                 Model1.Series.RemoveAt(1);
             
-            var podSessions = await nsql.PodSessions(Start, End);
-            foreach (var ps in podSessions)
+            await foreach (var ps in tsvReader.PodSessions(Start, End))
             {
-                if (ps.Hormone == HormoneType.InsulinAspart)
+                if (ps.Hormone == HormoneType.Glucagon)
                 {
                     var simulationSerie = new LineSeries()
                     {
-                        YAxisKey = "ia",
+                        YAxisKey = "insulin",
                         Color = OxyColor.FromRgb(35,215,255)
                     };
                     foreach (var iv in InsulinModel.Run(ps,TimeSpan.FromHours(12) ))
@@ -134,41 +137,21 @@ namespace NightFlux.UI
                     }
                     Model1.Series.Add(simulationSerie);
                     
-                    var infusionSerie = new LineSeries()
+                    var deliverySeries = new LineSeries()
                     {
-                        YAxisKey = "ia",
+                        YAxisKey = "insulin",
                         Color = OxyColor.FromRgb(0,128,255),
                         LineStyle = LineStyle.Dash
                     };
 
-                    foreach (var fv in ps.Frames(TimeSpan.FromMinutes(WindowMinutes), TimeSpan.FromHours(12)))
+                    foreach (var fv in ps.GetDeliveries())
                     {
                         //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
-                        infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.LocalDateTime),
-                            Axis.ToDouble(fv.Value)));
-                        infusionSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.LocalDateTime),
-                            Axis.ToDouble(fv.Value)));
+                        deliverySeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.Time.LocalDateTime),
+                            Axis.ToDouble(fv.Delivered)));
                         
                     }
-                    Model1.Series.Add(infusionSerie);
-                    
-                    var totalSerie = new AreaSeries()
-                    {
-                        YAxisKey = "ia",
-                        Color = OxyColors.GreenYellow
-                    };
-                    var sum = 0d;
-                    var span = TimeSpan.FromMinutes(1);
-                    foreach (var fv in ps.Frames(span, TimeSpan.FromHours(0)))
-                    {
-                        //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
-                        totalSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.From.LocalDateTime),
-                            Axis.ToDouble(sum)));
-                        sum += (fv.Value * span.TotalHours);
-                        totalSerie.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.LocalDateTime),
-                            Axis.ToDouble(sum)));
-                    }
-                    Model1.Series.Add(totalSerie);
+                    Model1.Series.Add(deliverySeries);
 
                 }
             }

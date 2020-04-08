@@ -57,21 +57,21 @@ namespace NightFlux.Simulations
             SlowCompartment = 0;
             Circulation = 0;
 
-            foreach (var frame in podSession.Frames(TimeSpan.FromMinutes(1), prolongation))
+            foreach (var delivery in podSession.GetDeliveries())
             {
-                yield return ExecuteFrame(frame.From,frame.To, frame.Value);
+
             }
+
+            return null;
         }
         
 
         private (DateTimeOffset From, DateTimeOffset To, double Value) ExecuteFrame
-            (DateTimeOffset from, DateTimeOffset to, double hourlyRate)
+            (DateTimeOffset from, DateTimeOffset to, double deposit)
         {
             //Debug.WriteLine($"{from} {to} {hourlyRate}");
-            var durationMinutes = (to - from).Minutes;
-
-            var deposit = hourlyRate / 60d * durationMinutes;
-
+            var t = (to - from).TotalMinutes;
+            
             var lymphaticTransfer = 0d;
             var disassociation = 0d;
             var slowLocalDegradation = 0d;
@@ -81,20 +81,22 @@ namespace NightFlux.Simulations
             var capillaryTransfer = 0d;
             var fastLocalDegradation = 0d;
             
-            lymphaticTransfer = LymphaticCapillaryAbsorptionRate * SlowCompartment;
-            disassociation = HexamerDisassociationRate * SlowCompartment; 
-            slowLocalDegradation =
+            lymphaticTransfer = t * LymphaticCapillaryAbsorptionRate * SlowCompartment;
+            disassociation = t * HexamerDisassociationRate * SlowCompartment; 
+            
+            slowLocalDegradation = Math.Pow(
                 LocalDegradationSaturationHexamers * SlowCompartment 
-                / ( LocalDegradationMidPointHexamers + SlowCompartment );
+                / ( LocalDegradationMidPointHexamers + SlowCompartment ), t);
 
-            secondaryCapillaryTransfer = SecondaryCapillaryAbsorptionRate * DisassociationCompartment;
+            secondaryCapillaryTransfer = t * SecondaryCapillaryAbsorptionRate * DisassociationCompartment;
             if (secondaryCapillaryTransfer > DisassociationCompartment)
                 secondaryCapillaryTransfer = DisassociationCompartment;
             
-            capillaryTransfer = BloodCapillaryAbsorptionRate * FastCompartment;
-            fastLocalDegradation =
+            capillaryTransfer = t * BloodCapillaryAbsorptionRate * FastCompartment;
+            
+            fastLocalDegradation = Math.Pow(
                 LocalDegradationSaturationMonomers * FastCompartment 
-                / (LocalDegradationMidPointMonomers + FastCompartment);
+                / (LocalDegradationMidPointMonomers + FastCompartment), t);
 
             // Debug.WriteLine($"{from}\t{to}\t{SlowCompartment:F4}\t{slowLocalDegradation:F4}\t{FastCompartment:F4}\t{fastLocalDegradation:F4}");
 

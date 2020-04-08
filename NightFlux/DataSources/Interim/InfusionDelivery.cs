@@ -2,10 +2,10 @@
 
 namespace NightFlux.Imports.Interim
 {
-    public struct InfusionRate : INightFluxEntity
+    public struct InfusionDelivery : INightFluxEntity
     {
         public int SiteId;
         public DateTimeOffset Time;
-        public double Rate;
+        public double Delivered;
     }
 }

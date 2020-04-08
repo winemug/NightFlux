@@ -129,16 +129,16 @@ namespace NightFlux.Data
                 {
                     A = podSession.Name,
                     B = (int)podSession.Hormone,
-                    C = podSession.UnitsPerMilliliter,
+                    C = podSession.Dilution,
                     D = podSession.Activated.ToUnixTimeMilliseconds(),
                     E = podSession.Deactivated.ToUnixTimeMilliseconds()
                 }, transaction);
 
             id = await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid();");
             await transaction.CommitAsync();
-            foreach (var rate in podSession.InfusionRates)
+            foreach (var delivery in podSession.GetDeliveries())
             {
-                await ImportEntity(new InfusionRate() { Rate = (double)rate.Value, Time = rate.Key, SiteId = id.Value });
+                await ImportEntity(new InfusionDelivery() { Delivered = delivery.Delivered, Time = delivery.Time, SiteId = id.Value });
             }
         }
 
@@ -198,13 +198,13 @@ namespace NightFlux.Data
                 //{
                 //    await ImportExtendedBolus((ExtendedBolus) iv);
                 //}
-                else if (iv is InfusionRate infusionRate)
+                else if (iv is InfusionDelivery infusionRate)
                 {
                     await Connection.ExecuteAsync("INSERT OR REPLACE INTO oc_infusion(time, site_id, rate) VALUES(@A,@B,@C)", new
                     {
                         A = infusionRate.Time.ToUnixTimeMilliseconds(),
                         B = infusionRate.SiteId,
-                        C = infusionRate.Rate
+                        C = infusionRate.Delivered
                     }, transaction);
                 }
             }
@@ -299,13 +299,13 @@ namespace NightFlux.Data
                     d[DateTimeOffset.FromUnixTimeMilliseconds(rate.time)] = ((double)rate.rate).ToDecimal(0.001m);
                 }
 
-                sessions.Add(new PodSession(d)
+                sessions.Add(new PodSession()
                 {
                     Activated = DateTimeOffset.FromUnixTimeMilliseconds(r.start),
                     Deactivated = DateTimeOffset.FromUnixTimeMilliseconds(r.stop),
                     Hormone = (HormoneType) r.hormone,
                     Name = r.name,
-                    UnitsPerMilliliter = ((double) r.units).ToDecimal(1m)
+                    Dilution = r.units
                 });
             }
 
