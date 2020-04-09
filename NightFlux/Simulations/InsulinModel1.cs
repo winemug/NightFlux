@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using NightFlux.Model;
 
@@ -53,18 +54,38 @@ namespace NightFlux.Simulations
        
         public IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> Run(PodSession podSession, TimeSpan prolongation)
         {
-            FastCompartment = 0;
-            SlowCompartment = 0;
-            Circulation = 0;
+            FastCompartment = 0d;
+            SlowCompartment = 0d;
+            Circulation = 0d;
+            DisassociationCompartment = 0d;
 
-            foreach (var delivery in podSession.GetDeliveries())
+            var list = podSession.GetDeliveries();
+            var t0 = list[0].Time;
+            var d0 = list[0].Delivered;
+            foreach (var delivery in podSession.GetDeliveries().Skip(1))
             {
-
+                if (t0 != delivery.Time)
+                {
+                    foreach (var frame in ExecuteFrames(t0, delivery.Time, d0))
+                        yield return frame;
+                    t0 = delivery.Time;
+                    d0 = delivery.Delivered - d0;
+                }
             }
-
-            return null;
         }
-        
+
+        private IEnumerable<(DateTimeOffset From, DateTimeOffset To, double Value)> ExecuteFrames
+            (DateTimeOffset from, DateTimeOffset to, double deposit)
+        {
+            var t = (to - from).TotalMinutes;
+            var d = (int) t;
+            var offset = (to - from).TotalMilliseconds / d;
+            while (from < to)
+            {
+                yield return ExecuteFrame(from, from.AddMilliseconds(offset), deposit / d);
+                from = from.AddMilliseconds(offset);
+            }
+        }
 
         private (DateTimeOffset From, DateTimeOffset To, double Value) ExecuteFrame
             (DateTimeOffset from, DateTimeOffset to, double deposit)
@@ -82,11 +103,11 @@ namespace NightFlux.Simulations
             var fastLocalDegradation = 0d;
             
             lymphaticTransfer = t * LymphaticCapillaryAbsorptionRate * SlowCompartment;
-            disassociation = t * HexamerDisassociationRate * SlowCompartment; 
-            
+            disassociation = t * HexamerDisassociationRate * SlowCompartment;
+
             slowLocalDegradation = Math.Pow(
                 LocalDegradationSaturationHexamers * SlowCompartment 
-                / ( LocalDegradationMidPointHexamers + SlowCompartment ), t);
+                / (LocalDegradationMidPointHexamers + SlowCompartment), t);
 
             secondaryCapillaryTransfer = t * SecondaryCapillaryAbsorptionRate * DisassociationCompartment;
             if (secondaryCapillaryTransfer > DisassociationCompartment)
@@ -95,7 +116,7 @@ namespace NightFlux.Simulations
             capillaryTransfer = t * BloodCapillaryAbsorptionRate * FastCompartment;
             
             fastLocalDegradation = Math.Pow(
-                LocalDegradationSaturationMonomers * FastCompartment 
+                LocalDegradationSaturationMonomers * FastCompartment
                 / (LocalDegradationMidPointMonomers + FastCompartment), t);
 
             // Debug.WriteLine($"{from}\t{to}\t{SlowCompartment:F4}\t{slowLocalDegradation:F4}\t{FastCompartment:F4}\t{fastLocalDegradation:F4}");
@@ -104,23 +125,15 @@ namespace NightFlux.Simulations
             SlowCompartment -= lymphaticTransfer;
             SlowCompartment -= disassociation;
             SlowCompartment -= slowLocalDegradation;
-            if (SlowCompartment < 0)
-                SlowCompartment = 0;
             
             DisassociationCompartment += disassociation;
             DisassociationCompartment -= secondaryCapillaryTransfer;
-            if (DisassociationCompartment < 0)
-                DisassociationCompartment = 0;
             
             FastCompartment += deposit * MonomericAndDimericFormsRatio;
             FastCompartment -= capillaryTransfer;
             FastCompartment -= fastLocalDegradation;
-            if (FastCompartment < 0)
-                FastCompartment = 0;
             
-            Circulation -= EliminationRate * Circulation;
-            if (Circulation < 0)
-                Circulation = 0;
+            Circulation -= t * EliminationRate * Circulation;
 
             Circulation += lymphaticTransfer;
             Circulation += capillaryTransfer;

@@ -36,7 +36,7 @@ namespace NightFlux.UI
         public MainPlotViewModel()
         {
             Start = DateTimeOffset.UtcNow.AddDays(-28);
-            End = DateTimeOffset.UtcNow;
+            End = DateTimeOffset.UtcNow.AddHours(6);
             InsulinModel = new InsulinModel1();
             InsulinModel.PropertyChanged += (sender, args) => DelayedUpdate();
             this.PropertyChanged += (sender, args) => DelayedUpdate();
@@ -48,9 +48,9 @@ namespace NightFlux.UI
                 Maximum = DateTimeAxis.ToDouble(End.LocalDateTime) });
 
             Model1.Axes.Add(new LinearAxis { Position = AxisPosition.Left,
-                Title = "BG (mg/dL)",
-                Minimum = 20,
-                Maximum = 400,
+                Title = "(400 - BG) (mg/dL)",
+                Minimum = 0,
+                Maximum = 380,
                 Key = "bg"
             });
             
@@ -58,8 +58,8 @@ namespace NightFlux.UI
             {
                 Title = "Insulin (U)",
                 Position = AxisPosition.Right,
-                Minimum = 0,
-                Maximum = 250,
+                Minimum = -5,
+                Maximum = 20,
                 Key = "insulin"
             });
 
@@ -111,7 +111,7 @@ namespace NightFlux.UI
             //var last = 0d;
             await foreach (var gv in nsReader.BgValues(Start, End))
             {
-                s.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), 440d - gv.Value));
+                s.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), 400 - gv.Value));
                 //if (last != 0d)
                 //    BgSeriesDiff.Points.Add(new DataPoint(DateTimeAxis.ToDouble(gv.Time.LocalDateTime), (last - gv.Value)*GvFactor));
                 //last = gv.Value;
@@ -122,36 +122,59 @@ namespace NightFlux.UI
             
             await foreach (var ps in tsvReader.PodSessions(Start, End))
             {
-                if (ps.Hormone == HormoneType.Glucagon)
+                if (ps.Hormone == HormoneType.InsulinAspart)
                 {
                     var simulationSerie = new LineSeries()
                     {
                         YAxisKey = "insulin",
-                        Color = OxyColor.FromRgb(35,215,255)
+                        Color = OxyColor.FromRgb(35, 215, 255)
                     };
-                    foreach (var iv in InsulinModel.Run(ps,TimeSpan.FromHours(12) ))
+                    foreach (var iv in InsulinModel.Run(ps, TimeSpan.FromHours(12)))
                     {
                         simulationSerie.Points.Add(new DataPoint(
                             DateTimeAxis.ToDouble(iv.To.AddMinutes(SimulationShift).LocalDateTime),
                             Axis.ToDouble(iv.Value)));
                     }
                     Model1.Series.Add(simulationSerie);
-                    
-                    var deliverySeries = new LineSeries()
-                    {
-                        YAxisKey = "insulin",
-                        Color = OxyColor.FromRgb(0,128,255),
-                        LineStyle = LineStyle.Dash
-                    };
 
-                    foreach (var fv in ps.GetDeliveries())
-                    {
-                        //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
-                        deliverySeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.Time.LocalDateTime),
-                            Axis.ToDouble(fv.Delivered)));
-                        
-                    }
-                    Model1.Series.Add(deliverySeries);
+                    //var simulationSerie = new LineSeries()
+                    //{
+                    //    YAxisKey = "insulin",
+                    //    Color = OxyColor.FromRgb(35, 215, 255)
+                    //};
+                    //foreach (var iv in InsulinModel2.Run(ps, TimeSpan.FromMinutes(25)))
+                    //{
+                    //    simulationSerie.Points.Add(new DataPoint(
+                    //        DateTimeAxis.ToDouble(iv.Date.AddMinutes(SimulationShift).LocalDateTime),
+                    //        Axis.ToDouble(iv.Value)));
+                    //}
+                    //Model1.Series.Add(simulationSerie);
+
+                    //var deliverySeries = new LineSeries()
+                    //{
+                    //    YAxisKey = "insulin",
+                    //    Color = OxyColor.FromRgb(0,128,255),
+                    //    LineStyle = LineStyle.Dash
+                    //};
+
+                    //decimal? previous = null;
+                    //TimeSpan tv = TimeSpan.FromMinutes(25);
+                    //foreach (var fv in ps.GetRates())
+                    //{
+                    //    //Debug.WriteLine($"{fv.From}\t{fv.To}\t{fv.Value}");
+                    //    if (previous.HasValue)
+                    //        deliverySeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.Time.LocalDateTime + tv),
+                    //            Axis.ToDouble(previous.Value)));
+
+                    //    deliverySeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.Time.LocalDateTime + tv),
+                    //        Axis.ToDouble(fv.Value)));
+                    //    previous = fv.Value;
+                    //    //deliverySeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(fv.To.LocalDateTime),
+                    //    //    Axis.ToDouble(fv.Value)));
+                    //}
+                    //deliverySeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(End.LocalDateTime + tv),
+                    //    Axis.ToDouble(previous.Value)));
+                    //Model1.Series.Add(deliverySeries);
 
                 }
             }

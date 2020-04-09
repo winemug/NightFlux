@@ -44,7 +44,7 @@ namespace NightFlux.Imports
             var year = 1;
             var month = 1;
             var day = 1;
-            var utcOffset = 60;
+            var utcOffset = 120;
 
             PodSession ps = null;
 
@@ -118,9 +118,9 @@ namespace NightFlux.Imports
                     }
                 }
             }
-            catch
+            catch(Exception e)
             {
-                Debug.Write($"Offending line: {line}");
+                Debug.Write($"Error: {e} Offending line: {line}");
                 throw;
             }
             return ps;

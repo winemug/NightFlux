@@ -24,20 +24,73 @@ namespace NightFlux.Model
 
         public void SetBasalRate(DateTimeOffset date, decimal basalRate)
         {
+            while (ChannelDictionary.ContainsKey(date))
+            {
+                date = date.AddSeconds(1);
+            }
+
             ChannelDictionary.Add(date, (basalRate, null, null));
         }
 
         public void ExtendedBolus(DateTimeOffset date, decimal totalAmount, int totalMinutes)
         {
             var ebRate = totalAmount * 60m / totalMinutes;
+            while (ChannelDictionary.ContainsKey(date))
+            {
+                date = date.AddSeconds(1);
+            }
             ChannelDictionary.Add(date, (null, ebRate, null));
+
             ChannelDictionary.Add(date.AddMinutes(totalMinutes), (null, 0, null));
         }
 
         public void Bolus(DateTimeOffset date, decimal totalAmount)
         {
+            while (ChannelDictionary.ContainsKey(date))
+            {
+                date = date.AddSeconds(1);
+            }
             ChannelDictionary.Add(date.AddSeconds((double) (2 * (totalAmount / 0.05m))),
                 (null, null, totalAmount));
+        }
+
+        public List<(DateTimeOffset Time, decimal Value)> GetRates()
+        {
+            var list = new List<(DateTimeOffset Time, decimal Rate)>();
+
+            var basalRate = 0m;
+            var extendedBolusRate = 0m;
+
+            list.Add((Activated, 0m));
+            var lastEntry = Activated;
+
+            var nowEntry = DateTimeOffset.UtcNow;
+            if (Deactivated == DateTimeOffset.MaxValue)
+            {
+                ChannelDictionary.Add(nowEntry, (null, null, null));
+            }
+            
+            foreach (var channelItem in ChannelDictionary)
+            {
+                var entryDate = channelItem.Key;
+
+
+                var entry = channelItem.Value;
+                
+                if (entry.BasalRate.HasValue)
+                    basalRate = entry.BasalRate.Value;
+                
+                if (entry.ExtendedBolusRate.HasValue)
+                    extendedBolusRate = entry.ExtendedBolusRate.Value;
+                
+                list.Add((entryDate, basalRate + extendedBolusRate));
+            }
+            
+            if (Deactivated == DateTimeOffset.MaxValue)
+            {
+                ChannelDictionary.Remove(nowEntry);
+            }
+            return list;
         }
 
         public List<(DateTimeOffset Time, double Delivered)> GetDeliveries()
